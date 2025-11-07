@@ -75,21 +75,21 @@ INSERT INTO resource_type (type_name, description) VALUES
 CREATE TABLE inventory_item (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     character_id UUID REFERENCES character(id) ON DELETE CASCADE,
-    settlement_h3_index VARCHAR(15) REFERENCES settlement(h3_index) ON DELETE CASCADE,
+    building_h3_index VARCHAR(15) REFERENCES building(h3_index) ON DELETE CASCADE,
     resource_type_name VARCHAR(50) NOT NULL REFERENCES resource_type(type_name) ON DELETE RESTRICT,
     quantity INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_inventory_owner CHECK (
-        (character_id IS NOT NULL AND settlement_h3_index IS NULL)
-        OR (character_id IS NULL AND settlement_h3_index IS NOT NULL)
+        (character_id IS NOT NULL AND building_h3_index IS NULL)
+        OR (character_id IS NULL AND building_h3_index IS NOT NULL)
     ),
     CONSTRAINT chk_inventory_quantity CHECK (quantity >= 0),
-    CONSTRAINT unique_owner_resource UNIQUE (character_id, settlement_h3_index, resource_type_name)
+    CONSTRAINT unique_owner_resource UNIQUE (character_id, building_h3_index, resource_type_name)
 );
 
 CREATE INDEX idx_inventory_character_id ON inventory_item(character_id);
-CREATE INDEX idx_inventory_settlement_h3_index ON inventory_item(settlement_h3_index);
+CREATE INDEX idx_inventory_building_h3_index ON inventory_item(building_h3_index);
 CREATE INDEX idx_inventory_resource_type ON inventory_item(resource_type_name);
 
 -- ============================================
