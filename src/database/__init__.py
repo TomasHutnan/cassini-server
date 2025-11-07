@@ -17,8 +17,6 @@ from .connection import (
     fetch_val,
 )
 
-from . import queries
-
 __all__ = [
     # Connection management
     "init_db_pool",
@@ -31,5 +29,4 @@ __all__ = [
     "fetch_all",
     "fetch_val",
     # Query modules
-    "queries",
 ]
