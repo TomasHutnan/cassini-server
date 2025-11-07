@@ -53,20 +53,14 @@ CREATE INDEX idx_building_type ON building(type);
 CREATE INDEX idx_building_biome_type ON building(biome_type);
 
 -- ============================================
--- RESOURCE_TYPE TABLE
--- Enumeration of available resource types
+-- RESOURCE_TYPE ENUM
+-- Available resource types in the game
 -- ============================================
-CREATE TABLE resource_type (
-    type_name VARCHAR(50) PRIMARY KEY,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TYPE resource_type AS ENUM (
+    'WOOD',   -- Lumber harvested from forests
+    'STONE',  -- Stone mined from quarries
+    'WHEAT'   -- Grain grown in farmlands
 );
-
--- Insert default resource types
-INSERT INTO resource_type (type_name, description) VALUES
-    ('WOOD', 'Lumber harvested from forests'),
-    ('STONE', 'Stone mined from quarries'),
-    ('WHEAT', 'Grain grown in farmlands');
 
 -- ============================================
 -- INVENTORY_ITEM TABLE
@@ -76,7 +70,7 @@ CREATE TABLE inventory_item (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     character_id UUID REFERENCES character(id) ON DELETE CASCADE,
     building_h3_index VARCHAR(15) REFERENCES building(h3_index) ON DELETE CASCADE,
-    resource_type_name VARCHAR(50) NOT NULL REFERENCES resource_type(type_name) ON DELETE RESTRICT,
+    resource_type resource_type NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -85,12 +79,12 @@ CREATE TABLE inventory_item (
         OR (character_id IS NULL AND building_h3_index IS NOT NULL)
     ),
     CONSTRAINT chk_inventory_quantity CHECK (quantity >= 0),
-    CONSTRAINT unique_owner_resource UNIQUE (character_id, building_h3_index, resource_type_name)
+    CONSTRAINT unique_owner_resource UNIQUE (character_id, building_h3_index, resource_type)
 );
 
 CREATE INDEX idx_inventory_character_id ON inventory_item(character_id);
 CREATE INDEX idx_inventory_building_h3_index ON inventory_item(building_h3_index);
-CREATE INDEX idx_inventory_resource_type ON inventory_item(resource_type_name);
+CREATE INDEX idx_inventory_resource_type ON inventory_item(resource_type);
 
 -- ============================================
 -- TRIGGERS
@@ -128,14 +122,12 @@ SELECT
     i.character_id,
     c.user_id,
     u.name AS user_name,
-    i.resource_type_name,
-    rt.description AS resource_description,
+    i.resource_type,
     i.quantity,
     i.updated_at
 FROM inventory_item i
 JOIN character c ON i.character_id = c.id
 JOIN "user" u ON c.user_id = u.id
-JOIN resource_type rt ON i.resource_type_name = rt.type_name
 WHERE i.character_id IS NOT NULL;
 
 -- View: Building inventory with resource details
@@ -145,13 +137,11 @@ SELECT
     i.building_h3_index,
     b.name AS building_name,
     b.player_id,
-    i.resource_type_name,
-    rt.description AS resource_description,
+    i.resource_type,
     i.quantity,
     i.updated_at
 FROM inventory_item i
 JOIN building b ON i.building_h3_index = b.h3_index
-JOIN resource_type rt ON i.resource_type_name = rt.type_name
 WHERE i.building_h3_index IS NOT NULL;
 
 -- View: Building details with owner information
@@ -188,8 +178,9 @@ COMMENT ON COLUMN building.h3_index IS 'H3 geospatial index - natural primary ke
 COMMENT ON COLUMN building.biome_type IS 'Biome classification (e.g., Forest, Plains, Urban)';
 COMMENT ON COLUMN building.type IS 'Building function (e.g., Farm, Mine, Lumberyard)';
 
-COMMENT ON TABLE resource_type IS 'Enumeration of all available resource types in the game';
+COMMENT ON TYPE resource_type IS 'Available resource types: WOOD (lumber from forests), STONE (mined from quarries), WHEAT (grown in farmlands)';
 
 COMMENT ON TABLE inventory_item IS 'Polymorphic inventory for both characters and buildings';
 COMMENT ON COLUMN inventory_item.character_id IS 'References character when item is owned by a character';
 COMMENT ON COLUMN inventory_item.building_h3_index IS 'References building when item is owned by a building';
+COMMENT ON COLUMN inventory_item.resource_type IS 'Type of resource stored (ENUM: WOOD, STONE, WHEAT)';
