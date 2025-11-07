@@ -6,7 +6,7 @@ from uuid import UUID
 
 from jose import JWTError, jwt
 
-from ..config import get_settings
+from src.config import get_settings
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
