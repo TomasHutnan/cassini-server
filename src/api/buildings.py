@@ -1,4 +1,4 @@
-﻿"""Building management API endpoints."""
+"""Building management API endpoints."""
 
 from fastapi import APIRouter, HTTPException
 
