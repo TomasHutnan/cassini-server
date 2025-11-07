@@ -15,7 +15,7 @@ async def get_user_by_name(username: str) -> dict | None:
         User record as dict or None if not found
     """
     return await fetch_one(
-        'SELECT id, name, hash_pass, hash_salt, created_at, updated_at FROM "user" WHERE name = $1',
+        'SELECT id, name, hash_pass, created_at, updated_at FROM "user" WHERE name = $1',
         username
     )
 
@@ -30,18 +30,17 @@ async def get_user_by_id(user_id: UUID) -> dict | None:
         User record as dict or None if not found
     """
     return await fetch_one(
-        'SELECT id, name, hash_pass, hash_salt, created_at, updated_at FROM "user" WHERE id = $1',
+        'SELECT id, name, hash_pass, created_at, updated_at FROM "user" WHERE id = $1',
         user_id
     )
 
 
-async def create_user(username: str, hashed_password: str, salt: str) -> dict:
+async def create_user(username: str, hashed_password: str) -> dict:
     """Create a new user.
     
     Args:
         username: Desired username
-        hashed_password: Hashed password
-        salt: Password salt
+        hashed_password: Hashed password (bcrypt includes salt)
         
     Returns:
         Created user record as dict
@@ -51,24 +50,23 @@ async def create_user(username: str, hashed_password: str, salt: str) -> dict:
     """
     row = await fetch_one(
         '''
-        INSERT INTO "user" (name, hash_pass, hash_salt)
-        VALUES ($1, $2, $3)
+        INSERT INTO "user" (name, hash_pass)
+        VALUES ($1, $2)
         RETURNING id, name, created_at, updated_at
         ''',
-        username, hashed_password, salt
+        username, hashed_password
     )
     if not row:
         raise RuntimeError("Failed to create user")
     return row
 
 
-async def update_user_password(user_id: UUID, hashed_password: str, salt: str) -> bool:
+async def update_user_password(user_id: UUID, hashed_password: str) -> bool:
     """Update user's password.
     
     Args:
         user_id: User's UUID
-        hashed_password: New hashed password
-        salt: New password salt
+        hashed_password: New hashed password (bcrypt includes salt)
         
     Returns:
         True if successful, False otherwise
@@ -76,10 +74,10 @@ async def update_user_password(user_id: UUID, hashed_password: str, salt: str) -
     result = await execute_query(
         '''
         UPDATE "user"
-        SET hash_pass = $1, hash_salt = $2, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $3
+        SET hash_pass = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
         ''',
-        hashed_password, salt, user_id
+        hashed_password, user_id
     )
     return result == "UPDATE 1"
 

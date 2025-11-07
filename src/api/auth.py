@@ -5,10 +5,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from ..database.queries.users import create_user, get_user_by_name, update_user_password
-from ..auth.dependencies import get_current_user
-from ..auth.jwt import create_access_token, create_refresh_token, verify_token
-from ..auth.password import hash_password, verify_password
+from src.database.queries.users import create_user, get_user_by_name, update_user_password
+from src.auth.dependencies import get_current_user
+from src.auth.jwt import create_access_token, create_refresh_token, verify_token
+from src.auth.password import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -82,11 +82,11 @@ async def register(data: RegisterRequest):
             detail="Username already registered",
         )
 
-    # Hash password with salt
-    hashed_password, salt = hash_password(data.password)
+    # Hash password (bcrypt includes salt)
+    hashed_password = hash_password(data.password)
 
     # Create user
-    user = await create_user(data.username, hashed_password, salt)
+    user = await create_user(data.username, hashed_password)
 
     # Generate tokens
     access_token = create_access_token(data={"sub": str(user["id"])})
@@ -123,9 +123,7 @@ async def login(data: LoginRequest):
         )
 
     # Verify password
-    if not verify_password(
-        data.password, user["hash_salt"], user["hash_pass"]
-    ):
+    if not verify_password(data.password, user["hash_pass"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -142,12 +140,17 @@ async def login(data: LoginRequest):
     )
 
 
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request."""
+    refresh_token: str
+
+
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(refresh_token: str):
+async def refresh_token(data: RefreshTokenRequest):
     """Refresh access token using a valid refresh token.
 
     Args:
-        refresh_token: Valid refresh token
+        data: Refresh token request
 
     Returns:
         New access and refresh tokens
@@ -156,7 +159,7 @@ async def refresh_token(refresh_token: str):
         HTTPException 401: If refresh token is invalid
     """
     # Verify refresh token
-    payload = verify_token(refresh_token, token_type="refresh")
+    payload = verify_token(data.refresh_token, token_type="refresh")
     if not payload:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -200,20 +203,18 @@ async def change_password(
         HTTPException 500: If password update fails
     """
     # Verify old password
-    if not verify_password(
-        data.old_password, current_user["hash_salt"], current_user["hash_pass"]
-    ):
+    if not verify_password(data.old_password, current_user["hash_pass"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect password",
         )
 
-    # Hash new password
-    hashed_password, salt = hash_password(data.new_password)
+    # Hash new password (bcrypt includes salt)
+    hashed_password = hash_password(data.new_password)
 
     # Update password
     success = await update_user_password(
-        current_user["id"], hashed_password, salt
+        current_user["id"], hashed_password
     )
     if not success:
         raise HTTPException(
