@@ -2,8 +2,8 @@
 
 
 
-A game server for a geospatially-aware MMO city builder powered by **Copernicus land cover data** and real-world exploration. Players build buildings on a hexagonal grid mapped to real-world locations, utilizing actual biome and terrain data.# Requirements
-
+A game server for a geospatially-aware MMO city builder powered by **Copernicus land cover data** and real-world exploration. Players build buildings on a hexagonal grid mapped to real-world locations, utilizing actual biome and terrain data.
+# Requirements
 Python 3.9+
 
 ## 🌍 Features
