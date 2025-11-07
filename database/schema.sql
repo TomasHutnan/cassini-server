@@ -66,24 +66,7 @@ CREATE TABLE resource_type (
 INSERT INTO resource_type (type_name, description) VALUES
     ('WOOD', 'Lumber harvested from forests'),
     ('STONE', 'Stone mined from quarries'),
-    ('WHEAT', 'Grain grown in farmlands'),
-
--- ============================================
--- RESOURCE TABLE
--- Resource nodes on hexagonal tiles
--- ============================================
-CREATE TABLE resource (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    hex_h3_index VARCHAR(15) NOT NULL REFERENCES settlement(h3_index) ON DELETE CASCADE,
-    resource_type_name VARCHAR(50) NOT NULL REFERENCES resource_type(type_name) ON DELETE RESTRICT,
-    strength INTEGER NOT NULL DEFAULT 100,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_resource_strength CHECK (strength >= 0 AND strength <= 1000)
-);
-
-CREATE INDEX idx_resource_hex ON resource(hex_h3_index);
-CREATE INDEX idx_resource_type ON resource(resource_type_name);
+    ('WHEAT', 'Grain grown in farmlands');
 
 -- ============================================
 -- INVENTORY_ITEM TABLE
@@ -124,9 +107,6 @@ CREATE TRIGGER update_character_updated_at BEFORE UPDATE ON character
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_settlement_updated_at BEFORE UPDATE ON settlement
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_resource_updated_at BEFORE UPDATE ON resource
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_inventory_item_updated_at BEFORE UPDATE ON inventory_item
@@ -188,20 +168,6 @@ FROM settlement s
 JOIN character c ON s.player_id = c.id
 JOIN "user" u ON c.user_id = u.id;
 
--- View: Resource nodes with settlement and type details
-CREATE VIEW v_resource_nodes AS
-SELECT 
-    r.id,
-    r.hex_h3_index,
-    s.name AS settlement_name,
-    r.resource_type_name,
-    rt.description AS resource_description,
-    r.strength,
-    r.created_at
-FROM resource r
-JOIN settlement s ON r.hex_h3_index = s.h3_index
-JOIN resource_type rt ON r.resource_type_name = rt.type_name;
-
 -- ============================================
 -- COMMENTS
 -- Add table and column descriptions
@@ -219,9 +185,6 @@ COMMENT ON COLUMN settlement.biome_type IS 'Biome classification (e.g., Forest, 
 COMMENT ON COLUMN settlement.type IS 'Settlement function (e.g., Farm, Mine, Lumberyard)';
 
 COMMENT ON TABLE resource_type IS 'Enumeration of all available resource types in the game';
-
-COMMENT ON TABLE resource IS 'Resource nodes present on settlement tiles';
-COMMENT ON COLUMN resource.strength IS 'Abundance or quality of the resource node (0-1000)';
 
 COMMENT ON TABLE inventory_item IS 'Polymorphic inventory for both characters and settlements';
 COMMENT ON COLUMN inventory_item.owner_type IS 'Must be either CHARACTER or SETTLEMENT';
