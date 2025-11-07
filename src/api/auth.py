@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from database.queries.users import create_user, get_user_by_name, update_user_password
+from ..database.queries.users import create_user, get_user_by_name, update_user_password
 from ..auth.dependencies import get_current_user
 from ..auth.jwt import create_access_token, create_refresh_token, verify_token
 from ..auth.password import hash_password, verify_password
