@@ -6,3 +6,7 @@ h3
 python-dotenv
 rasterio
 uvicorn
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+asyncpg
