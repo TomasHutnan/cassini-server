@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api import map, settlements
+from src.api import map, buildings
 from src.config import get_settings
 
 settings = get_settings()
@@ -24,7 +24,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(map.router)
-app.include_router(settlements.router)
+app.include_router(buildings.router)
 
 
 @app.get("/")

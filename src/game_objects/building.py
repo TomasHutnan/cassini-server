@@ -4,7 +4,7 @@ from .inventory import InventoryItem
 
 
 @dataclass
-class Settlement:
+class Building:
     player_id: str
     name: str
     type: Resource

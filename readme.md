@@ -2,7 +2,7 @@
 
 
 
-A game server for a geospatially-aware MMO city builder powered by **Copernicus land cover data** and real-world exploration. Players build settlements on a hexagonal grid mapped to real-world locations, utilizing actual biome and terrain data.# Requirements
+A game server for a geospatially-aware MMO city builder powered by **Copernicus land cover data** and real-world exploration. Players build buildings on a hexagonal grid mapped to real-world locations, utilizing actual biome and terrain data.# Requirements
 
 Python 3.9+
 
@@ -14,7 +14,7 @@ Python 3.9+
 - **Hexagonal grid system** (H3) for efficient spatial operations
 - **Biome-based resource economy** (trees, crops, water, etc.)
 - **RESTful API** built with FastAPI
-- **Player settlements** and resource management
+- **Player buildings** and resource management
 
 ## 🏗️ Architecture
 
@@ -24,7 +24,7 @@ ae-cassini-server-2025/
 │   ├── api/                 # FastAPI routes and endpoints
 │   ├── copernicus/          # Copernicus satellite data integration
 │   ├── database/            # Database models and connections
-│   ├── game_objects/        # Core game models (Tile, Settlement, etc.)
+│   ├── game_objects/        # Core game models (Tile, building, etc.)
 │   ├── config.py            # Configuration management
 │   └── main.py              # FastAPI app entry point
 ├── .env.template            # Environment variable template
@@ -102,7 +102,7 @@ Health check endpoint.
 ```
 
 ### `GET /map/`
-Fetch map data with biomes, settlements, and resources.
+Fetch map data with biomes, buildings, and resources.
 
 **Parameters:**
 - `lat` (float, required): Latitude
@@ -116,8 +116,8 @@ Fetch map data with biomes, settlements, and resources.
     {
       "hex_id": "8a1234567890abc",
       "biome": "Tree cover",
-      "settlement": null,
-      "boundary": [[lat, lon], ...]
+      "building": null,
+      "center": [lat, lon],
     }
   ]
 }
@@ -128,14 +128,14 @@ Fetch map data with biomes, settlements, and resources.
 ### Tile
 Represents a hexagonal map tile with biome data.
 
-### Settlement
+### Building
 Player-owned structures that produce resources.
 
 ### Resource
 Game resources: `WHEAT`, `WOOD`, `STONE`, etc.
 
 ### Inventory
-Manages resource quantities for settlements.
+Manages resource quantities for buildings.
 
 ## 🛠️ Development
 
@@ -151,11 +151,11 @@ Create routers in `src/api/` and register them in `src/main.py`:
 
 ```python
 from fastapi import APIRouter
-router = APIRouter(prefix="/settlements", tags=["settlements"])
+router = APIRouter(prefix="/buildings", tags=["buildings"])
 
 @router.get("/")
-async def list_settlements():
-    return {"settlements": []}
+async def list_buildings():
+    return {"buildings": []}
 ```
 
 ### Running Tests
@@ -185,7 +185,7 @@ pytest tests/
 - [x] Copernicus data integration
 - [x] Hexagonal grid system
 - [ ] Player authentication
-- [ ] Settlement placement and management
+- [ ] building placement and management
 - [ ] Resource production system
 - [ ] Player trading/economy
 - [ ] WebSocket for real-time updates
