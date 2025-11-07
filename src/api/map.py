@@ -11,7 +11,9 @@ async def get_map(
     lon: float = Query(..., description="Longitude coordinate"),
     range: int = Query(200, description="Range in meters", ge=50, le=5000),
 ):
-    """Fetch the map with all settlements and resource information.
+    """Fetch the map with all buildings and resource information.
+
+    Example usage: http://localhost:8000/map/?lat=48.1486&lon=17.1077&range=200
 
     Args:
         lat: Latitude of the center point
@@ -19,7 +21,7 @@ async def get_map(
         range: Range in meters (default: 200m)
 
     Returns:
-        Dictionary containing tile information with biomes, settlements, and resources
+        Dictionary containing tile information with biomes, buildings, and resources
     """
     # TODO: Implement actual map generation using Copernicus data
     return {

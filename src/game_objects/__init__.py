@@ -2,7 +2,7 @@
 
 from .resources import Resource
 from .inventory import InventoryItem
-from .settlement import Settlement
+from .building import Building
 from .tile import Tile, Point
 
-__all__ = ["Resource", "InventoryItem", "Settlement", "Tile", "Point"]
+__all__ = ["Resource", "InventoryItem", "Building", "Tile", "Point"]

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from .settlement import Settlement
+from .building import Building
 
 
 @dataclass
@@ -16,7 +16,7 @@ class Tile:
     hex_id: str
     center: Point
     biome: str
-    settlement: Settlement | None = None
+    building: Building | None = None
 
     def get_info(self):
         pass
