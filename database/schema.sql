@@ -32,11 +32,11 @@ CREATE INDEX idx_character_user_id ON character(user_id);
 CREATE INDEX idx_character_is_pvp ON character(is_pvp);
 
 -- ============================================
--- SETTLEMENT TABLE
+-- BUILDING TABLE
 -- Player-owned structures on hexagonal tiles
 -- Uses H3 index as natural primary key
 -- ============================================
-CREATE TABLE settlement (
+CREATE TABLE building (
     h3_index VARCHAR(15) PRIMARY KEY,
     player_id UUID NOT NULL REFERENCES character(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
@@ -45,12 +45,12 @@ CREATE TABLE settlement (
     level INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_settlement_level CHECK (level >= 1 AND level <= 10)
+    CONSTRAINT chk_building_level CHECK (level >= 1 AND level <= 10)
 );
 
-CREATE INDEX idx_settlement_player_id ON settlement(player_id);
-CREATE INDEX idx_settlement_type ON settlement(type);
-CREATE INDEX idx_settlement_biome_type ON settlement(biome_type);
+CREATE INDEX idx_building_player_id ON building(player_id);
+CREATE INDEX idx_building_type ON building(type);
+CREATE INDEX idx_building_biome_type ON building(biome_type);
 
 -- ============================================
 -- RESOURCE_TYPE TABLE
@@ -70,7 +70,7 @@ INSERT INTO resource_type (type_name, description) VALUES
 
 -- ============================================
 -- INVENTORY_ITEM TABLE
--- Polymorphic inventory for characters and settlements
+-- Polymorphic inventory for characters and buildings
 -- ============================================
 CREATE TABLE inventory_item (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -80,7 +80,7 @@ CREATE TABLE inventory_item (
     quantity INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_owner_type CHECK (owner_type IN ('CHARACTER', 'SETTLEMENT')),
+    CONSTRAINT chk_owner_type CHECK (owner_type IN ('CHARACTER', 'BUILDING')),
     CONSTRAINT chk_inventory_quantity CHECK (quantity >= 0),
     CONSTRAINT unique_owner_resource UNIQUE (owner_id, resource_type_name)
 );
@@ -106,7 +106,7 @@ CREATE TRIGGER update_user_updated_at BEFORE UPDATE ON "user"
 CREATE TRIGGER update_character_updated_at BEFORE UPDATE ON character
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_settlement_updated_at BEFORE UPDATE ON settlement
+CREATE TRIGGER update_building_updated_at BEFORE UPDATE ON building
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_inventory_item_updated_at BEFORE UPDATE ON inventory_item
@@ -134,28 +134,28 @@ JOIN "user" u ON c.user_id = u.id
 JOIN resource_type rt ON i.resource_type_name = rt.type_name
 WHERE i.owner_type = 'CHARACTER';
 
--- View: Settlement inventory with resource details
-CREATE VIEW v_settlement_inventory AS
+-- View: Building inventory with resource details
+CREATE VIEW v_building_inventory AS
 SELECT 
     i.id,
-    i.owner_id AS settlement_h3_index,
-    s.name AS settlement_name,
+    i.owner_id AS building_h3_index,
+    s.name AS building_name,
     s.player_id,
     i.resource_type_name,
     rt.description AS resource_description,
     i.quantity,
     i.updated_at
 FROM inventory_item i
-JOIN settlement s ON i.owner_id::text = s.h3_index
+JOIN building s ON i.owner_id::text = s.h3_index
 JOIN resource_type rt ON i.resource_type_name = rt.type_name
-WHERE i.owner_type = 'SETTLEMENT';
+WHERE i.owner_type = 'BUILDING';
 
--- View: Settlement details with owner information
-CREATE VIEW v_settlement_details AS
+-- View: Building details with owner information
+CREATE VIEW v_building_details AS
 SELECT 
     s.h3_index,
-    s.name AS settlement_name,
-    s.type AS settlement_type,
+    s.name AS building_name,
+    s.type AS building_type,
     s.biome_type,
     s.level,
     c.id AS character_id,
@@ -164,7 +164,7 @@ SELECT
     u.name AS owner_name,
     s.created_at,
     s.updated_at
-FROM settlement s
+FROM building s
 JOIN character c ON s.player_id = c.id
 JOIN "user" u ON c.user_id = u.id;
 
@@ -179,13 +179,13 @@ COMMENT ON COLUMN "user".hash_salt IS 'Password salt for additional security';
 COMMENT ON TABLE character IS 'Game characters - each user has one PVP (online) and one PVE (offline) character';
 COMMENT ON COLUMN character.is_pvp IS 'true = PVP/online character, false = PVE/offline character';
 
-COMMENT ON TABLE settlement IS 'Player-owned structures on hexagonal map tiles';
-COMMENT ON COLUMN settlement.h3_index IS 'H3 geospatial index - natural primary key';
-COMMENT ON COLUMN settlement.biome_type IS 'Biome classification (e.g., Forest, Plains, Urban)';
-COMMENT ON COLUMN settlement.type IS 'Settlement function (e.g., Farm, Mine, Lumberyard)';
+COMMENT ON TABLE building IS 'Player-owned structures on hexagonal map tiles';
+COMMENT ON COLUMN building.h3_index IS 'H3 geospatial index - natural primary key';
+COMMENT ON COLUMN building.biome_type IS 'Biome classification (e.g., Forest, Plains, Urban)';
+COMMENT ON COLUMN building.type IS 'Building function (e.g., Farm, Mine, Lumberyard)';
 
 COMMENT ON TABLE resource_type IS 'Enumeration of all available resource types in the game';
 
-COMMENT ON TABLE inventory_item IS 'Polymorphic inventory for both characters and settlements';
-COMMENT ON COLUMN inventory_item.owner_type IS 'Must be either CHARACTER or SETTLEMENT';
-COMMENT ON COLUMN inventory_item.owner_id IS 'References either character.id or settlement.h3_index';
+COMMENT ON TABLE inventory_item IS 'Polymorphic inventory for both characters and buildings';
+COMMENT ON COLUMN inventory_item.owner_type IS 'Must be either CHARACTER or BUILDING';
+COMMENT ON COLUMN inventory_item.owner_id IS 'References either character.id or building.h3_index';
