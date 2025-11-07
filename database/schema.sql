@@ -125,7 +125,7 @@ CREATE TRIGGER update_inventory_item_updated_at BEFORE UPDATE ON inventory_item
 CREATE VIEW v_character_inventory AS
 SELECT 
     i.id,
-    i.owner_id AS character_id,
+    i.character_id,
     c.user_id,
     u.name AS user_name,
     i.resource_type_name,
@@ -133,43 +133,43 @@ SELECT
     i.quantity,
     i.updated_at
 FROM inventory_item i
-JOIN character c ON i.owner_id = c.id
+JOIN character c ON i.character_id = c.id
 JOIN "user" u ON c.user_id = u.id
 JOIN resource_type rt ON i.resource_type_name = rt.type_name
-WHERE i.owner_type = 'CHARACTER';
+WHERE i.character_id IS NOT NULL;
 
 -- View: Building inventory with resource details
 CREATE VIEW v_building_inventory AS
 SELECT 
     i.id,
-    i.owner_id AS building_h3_index,
-    s.name AS building_name,
-    s.player_id,
+    i.building_h3_index,
+    b.name AS building_name,
+    b.player_id,
     i.resource_type_name,
     rt.description AS resource_description,
     i.quantity,
     i.updated_at
 FROM inventory_item i
-JOIN building s ON i.owner_id::text = s.h3_index
+JOIN building b ON i.building_h3_index = b.h3_index
 JOIN resource_type rt ON i.resource_type_name = rt.type_name
-WHERE i.owner_type = 'BUILDING';
+WHERE i.building_h3_index IS NOT NULL;
 
 -- View: Building details with owner information
 CREATE VIEW v_building_details AS
 SELECT 
-    s.h3_index,
-    s.name AS building_name,
-    s.type AS building_type,
-    s.biome_type,
-    s.level,
+    b.h3_index,
+    b.name AS building_name,
+    b.type AS building_type,
+    b.biome_type,
+    b.level,
     c.id AS character_id,
     c.is_pvp,
     u.id AS user_id,
     u.name AS owner_name,
-    s.created_at,
-    s.updated_at
-FROM building s
-JOIN character c ON s.player_id = c.id
+    b.created_at,
+    b.updated_at
+FROM building b
+JOIN character c ON b.player_id = c.id
 JOIN "user" u ON c.user_id = u.id;
 
 -- ============================================
@@ -191,5 +191,5 @@ COMMENT ON COLUMN building.type IS 'Building function (e.g., Farm, Mine, Lumbery
 COMMENT ON TABLE resource_type IS 'Enumeration of all available resource types in the game';
 
 COMMENT ON TABLE inventory_item IS 'Polymorphic inventory for both characters and buildings';
-COMMENT ON COLUMN inventory_item.owner_type IS 'Must be either CHARACTER or BUILDING';
-COMMENT ON COLUMN inventory_item.owner_id IS 'References either character.id or building.h3_index';
+COMMENT ON COLUMN inventory_item.character_id IS 'References character when item is owned by a character';
+COMMENT ON COLUMN inventory_item.building_h3_index IS 'References building when item is owned by a building';
