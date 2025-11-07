@@ -8,7 +8,7 @@ import asyncpg
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from src.config import get_settings
+from ..config import get_settings
 
 # Global connection pool
 _pool: asyncpg.Pool | None = None

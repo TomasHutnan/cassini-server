@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from database.queries.users import get_user_by_id
+from ..database.queries.users import get_user_by_id
 from .jwt import get_user_id_from_token
 
 # Security scheme for Bearer token
