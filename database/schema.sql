@@ -8,7 +8,6 @@ CREATE TABLE "user" (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) UNIQUE NOT NULL,
     hash_pass VARCHAR(255) NOT NULL,
-    hash_salt VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -167,8 +166,7 @@ JOIN "user" u ON c.user_id = u.id;
 -- Add table and column descriptions
 -- ============================================
 COMMENT ON TABLE "user" IS 'Player account information';
-COMMENT ON COLUMN "user".hash_pass IS 'Bcrypt hashed password';
-COMMENT ON COLUMN "user".hash_salt IS 'Password salt for additional security';
+COMMENT ON COLUMN "user".hash_pass IS 'Bcrypt hashed password (with salt)';
 
 COMMENT ON TABLE character IS 'Game characters - each user has one PVP (online) and one PVE (offline) character';
 COMMENT ON COLUMN character.is_pvp IS 'true = PVP/online character, false = PVE/offline character';
