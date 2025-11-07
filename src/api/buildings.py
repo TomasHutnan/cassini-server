@@ -1,8 +1,22 @@
-"""Building management API endpoints."""
+﻿"""Building management API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from ..auth.dependencies import get_user_id
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
+
+
+# Request models
+class BuildingCreate(BaseModel):
+    """Data for creating a new building."""
+    hex_id: str
+    name: str
+    building_type: str
 
 
 @router.get("/")
@@ -24,7 +38,8 @@ async def list_buildings(player_id: str | None = None):
 
 @router.post("/")
 async def create_building(
-    hex_id: str, player_id: str, name: str, building_type: str
+    data: BuildingCreate,
+    user_id: Annotated[UUID, Depends(get_user_id)]
 ):
     """Create a new building on a hex tile.
 
@@ -39,15 +54,13 @@ async def create_building(
     """
     # TODO: Implement building creation logic
     # - Validate hex_id exists and is available
-    # - Check player permissions
-    # - Verify biome compatibility with building type
-    # - Save to database
+    # - Save to database with user_id as owner
     return {
         "building": {
-            "hex_id": hex_id,
-            "player_id": player_id,
-            "name": name,
-            "type": building_type,
+            "hex_id": data.hex_id,
+            "player_id": str(user_id),
+            "name": data.name,
+            "type": data.building_type,
             "level": 1,
         },
         "message": "Building creation not yet implemented",
@@ -55,7 +68,10 @@ async def create_building(
 
 
 @router.get("/{building_id}")
-async def get_building(building_id: str):
+async def get_building(
+    building_id: str,
+    user_id: Annotated[UUID, Depends(get_user_id)]
+):
     """Get details of a specific building.
 
     Args:
@@ -69,8 +85,13 @@ async def get_building(building_id: str):
 
 
 @router.delete("/{building_id}")
-async def delete_building(building_id: str, player_id: str):
+async def delete_building(
+    building_id: str,
+    user_id: Annotated[UUID, Depends(get_user_id)]
+):
     """Delete a building (requires ownership).
+
+    Requires authentication - Only the owner can delete their building.
 
     Args:
         building_id: Building to delete
