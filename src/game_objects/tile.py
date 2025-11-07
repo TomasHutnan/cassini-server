@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from .settlement import Settlement
 
 
@@ -14,7 +14,7 @@ class Point:
 @dataclass
 class Tile:
     hex_id: str
-    boundary: list[Point] = field(default_factory=list)
+    center: Point
     biome: str
     settlement: Settlement | None = None
 
