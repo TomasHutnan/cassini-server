@@ -37,7 +37,7 @@ CREATE INDEX idx_character_is_pvp ON character(is_pvp);
 -- Uses H3 index as natural primary key
 -- ============================================
 CREATE TABLE building (
-    h3_index VARCHAR(15) PRIMARY KEY,
+    h3_index VARCHAR(20) PRIMARY KEY,
     player_id UUID NOT NULL REFERENCES character(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     biome_type VARCHAR(50) NOT NULL,
