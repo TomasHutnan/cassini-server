@@ -17,7 +17,7 @@ load_dotenv()
 
 # ==================== CONFIGURATION ====================
 # Location (latitude, longitude)
-CENTER_LAT, CENTER_LON = 48.69740220446884, 21.28180222871356
+#CENTER_LAT, CENTER_LON = 48.69740220446884, 21.28180222871356
 
 # Area size in meters (width, height)
 AREA_SIZE_M = (1000, 1000)  # 1km x 1km
@@ -658,141 +658,6 @@ def snap_lakes_to_hexes(lakes, hexagons, lat_correction):
     return lake_hexes
 
 
-def visualize_comparison(grid, hex_biomes, rivers=None, lakes=None):
-    """Visualize square grid and hexagonal grid side by side."""
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(20, 10))
-
-    # Left: Square grid
-    def biome_to_rgb(biome_name):
-        color_map = {
-            "Tree cover": (0, 100 / 255, 0),
-            "Shrubland": (1, 187 / 255, 34 / 255),
-            "Grassland": (1, 1, 76 / 255),
-            "Cropland": (240 / 255, 150 / 255, 1),
-            "Herbaceous wetland": (0, 150 / 255, 160 / 255),
-            "Mangroves": (0, 207 / 255, 117 / 255),
-            "Moss and lichen": (250 / 255, 230 / 255, 160 / 255),
-            "Bare/sparse vegetation": (180 / 255, 180 / 255, 180 / 255),
-            "Permanent water bodies": (0, 100 / 255, 200 / 255),
-            "Snow and ice": (240 / 255, 240 / 255, 240 / 255),
-            "Unclassifiable": (10 / 255, 10 / 255, 10 / 255),
-        }
-        return color_map.get(biome_name, (0, 0, 0))
-
-    grid_rgb = np.array(
-        [[biome_to_rgb(biome) for biome in row] for row in grid]
-    )
-    ax1.imshow(grid_rgb, interpolation="nearest")
-    ax1.set_title("Square Grid (Original Biome Data)")
-    ax1.axis("off")
-
-    # Right: Hexagonal grid
-    sample_hex = list(hex_biomes.keys())[0]
-    center_lat, _ = h3.cell_to_latlng(sample_hex)
-    lat_corr = math.cos(math.radians(center_lat))
-
-    # Snap water features
-    river_hexes = (
-        snap_rivers_to_hexes(rivers, hex_biomes.keys(), lat_corr)
-        if rivers
-        else set()
-    )
-    lake_hexes = (
-        snap_lakes_to_hexes(lakes, hex_biomes.keys(), lat_corr)
-        if lakes
-        else set()
-    )
-
-    print(f"Rivers: {len(river_hexes)} hexes, Lakes: {len(lake_hexes)} hexes")
-
-    patches, colors = [], []
-    for hex_id, biome in hex_biomes.items():
-        boundary = h3.cell_to_boundary(hex_id)
-        coords = [(c[1] * lat_corr, c[0]) for c in boundary]
-        patches.append(Polygon(coords, closed=True))
-
-        if hex_id in lake_hexes:
-            colors.append("#003d7a")
-        elif hex_id in river_hexes:
-            colors.append("#0066ff")
-        else:
-            colors.append(BIOME_COLORS.get(biome, "#000000"))
-
-    collection = PatchCollection(
-        patches,
-        facecolors=colors,
-        edgecolors="black",
-        linewidths=0.1,
-        alpha=0.8,
-    )
-    ax2.add_collection(collection)
-
-    # Draw original water vectors for reference
-    if rivers:
-        print(f"Drawing {len(rivers)} river overlays...")
-        for river in rivers:
-            coords = river["coordinates"]
-            if len(coords) > 0:
-                lons = [c[0] * lat_corr for c in coords]
-                lats = [c[1] for c in coords]
-                ax2.plot(
-                    lons,
-                    lats,
-                    color="cyan",
-                    linewidth=1.5,
-                    alpha=0.7,
-                    zorder=10,
-                )
-    else:
-        print("No rivers to draw")
-
-    if lakes:
-        print(f"Drawing {len(lakes)} lake overlays...")
-        for lake in lakes:
-            if lake["coordinates"]:
-                ring = lake["coordinates"][0]
-                if len(ring) > 0:
-                    coords = [(c[0] * lat_corr, c[1]) for c in ring]
-                    lake_poly = Polygon(
-                        coords,
-                        closed=True,
-                        facecolor="none",
-                        edgecolor="cyan",
-                        linewidth=1.5,
-                        alpha=0.7,
-                        zorder=10,
-                    )
-                    ax2.add_patch(lake_poly)
-    else:
-        print("No lakes to draw")
-
-    # Calculate hex bounds for proper zoom
-    all_lons = []
-    all_lats = []
-    for hex_id in hex_biomes.keys():
-        boundary = h3.cell_to_boundary(hex_id)
-        for coord in boundary:
-            all_lons.append(coord[1] * lat_corr)
-            all_lats.append(coord[0])
-
-    hex_lon_min, hex_lon_max = min(all_lons), max(all_lons)
-    hex_lat_min, hex_lat_max = min(all_lats), max(all_lats)
-
-    lon_padding = (hex_lon_max - hex_lon_min) * 0.05
-    lat_padding = (hex_lat_max - hex_lat_min) * 0.05
-
-    ax2.set_xlim(hex_lon_min - lon_padding, hex_lon_max + lon_padding)
-    ax2.set_ylim(hex_lat_min - lat_padding, hex_lat_max + lat_padding)
-    ax2.set_aspect("equal")
-    ax2.set_xlabel("Longitude (corrected)")
-    ax2.set_ylabel("Latitude")
-    ax2.set_title(
-        f"Hexagonal Grid ({len(hex_biomes)} hexagons) with Water Features"
-    )
-
-    plt.tight_layout()
-    plt.show()
-
 
 def export_to_json(
     hex_biomes,
@@ -823,36 +688,22 @@ def export_to_json(
             ]
         data.append(record)
 
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=2)
-    print(f"Exported to {filename}")
-    print(f"  Total hexes: {len(data)}")
-    print(f"  River hexes: {len(river_hexes)}")
-    print(f"  Lake hexes: {len(lake_hexes)}")
+    return json.dumps(data)
 
 
-if __name__ == "__main__":
-    print("Configuration:")
-    print(f"  Location: ({CENTER_LAT}, {CENTER_LON})")
-    print(f"  Area: {AREA_SIZE_M[0] / 1000}km x {AREA_SIZE_M[1] / 1000}km")
-    print(f"  Hex size: {HEX_SIZE_M}m")
-    print()
+def generate_map(CENTER_LAT,CENTER_LON,RANGE):
 
     t0 = time.perf_counter()
-    print("Fetching biome data...")
     grid, lat_min, lat_max, lon_min, lon_max = get_biomes(
-        CENTER_LAT, CENTER_LON, AREA_SIZE_M, HEX_SIZE_M
+        CENTER_LAT, CENTER_LON, (RANGE,RANGE), HEX_SIZE_M
     )
     t1 = time.perf_counter()
 
-    print("Fetching river features from EU-Hydro...")
     rivers = get_euhydro_rivers(lat_min, lat_max, lon_min, lon_max)
     t2 = time.perf_counter()
-    print("Fetching lake/waterbody polygons from EU-Hydro...")
     lakes = get_euhydro_lakes(lat_min, lat_max, lon_min, lon_max)
     t3 = time.perf_counter()
 
-    print("Creating hexagonal grid...")
     hex_biomes = map_to_hexagons(
         CENTER_LAT,
         CENTER_LON,
@@ -861,7 +712,7 @@ if __name__ == "__main__":
         lat_max,
         lon_min,
         lon_max,
-        AREA_SIZE_M,
+        (RANGE,RANGE),
         HEX_SIZE_M,
     )
     t4 = time.perf_counter()
@@ -871,42 +722,16 @@ if __name__ == "__main__":
     center_lat, _ = h3.cell_to_latlng(sample_hex)
     lat_corr = math.cos(math.radians(center_lat))
 
-    print("Snapping rivers to hexagons...")
     river_hexes = (
         snap_rivers_to_hexes(rivers, hex_biomes.keys(), lat_corr)
         if rivers
         else set()
     )
     t5 = time.perf_counter()
-    print(f">>> SNAPPED {len(river_hexes)} RIVER HEXES <<<")
-
-    print("Snapping lakes to hexagons...")
     lake_hexes = (
         snap_lakes_to_hexes(lakes, hex_biomes.keys(), lat_corr)
         if lakes
         else set()
     )
     t6 = time.perf_counter()
-    print(f">>> SNAPPED {len(lake_hexes)} LAKE HEXES <<<")
-
-    print("\nData preparation timings (seconds):")
-    print(f"  Biomes:    {t1 - t0:.2f}")
-    print(f"  Rivers:    {t2 - t1:.2f}")
-    print(f"  Lakes:     {t3 - t2:.2f}")
-    print(f"  Hex map:   {t4 - t3:.2f}")
-    print(f"  Snap rivers: {t5 - t4:.2f}")
-    print(f"  Snap lakes:  {t6 - t5:.2f}")
-    print(f"  Total: {t6 - t0:.2f}")
-
-    print("\nVisualizing...")
-    visualize_comparison(grid, hex_biomes, rivers, lakes)
-
-    print("\nExporting...")
-    export_to_json(hex_biomes, river_hexes, lake_hexes, include_boundary=True)
-
-    print("\n" + "=" * 60)
-    print("DONE! Check hex_biomes.json")
-    print(f"Total: {len(hex_biomes)} hexes")
-    print(f"Rivers: {len(river_hexes)} hexes")
-    print(f"Lakes: {len(lake_hexes)} hexes")
-    print("=" * 60)
+    return export_to_json(hex_biomes, river_hexes, lake_hexes, include_boundary=True)

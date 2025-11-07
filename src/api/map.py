@@ -1,7 +1,7 @@
 """Map-related API endpoints."""
 
 from fastapi import APIRouter, Query
-
+from examples.hexwater_prototype import generate_map
 router = APIRouter(prefix="/map", tags=["map"])
 
 
@@ -27,6 +27,6 @@ async def get_map(
     return {
         "center": {"lat": lat, "lon": lon},
         "range_m": range,
-        "tiles": [],
+        "tiles": generate_map(lat,lon,range),
         "message": "Map generation not yet implemented",
     }
