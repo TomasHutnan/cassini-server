@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.auth import router as auth_router
 from src.api.map import router as map_router
 from src.api.buildings import router as buildings_router
-from src.api.market import router as market_router  # added
+from src.api.market import router as market_router
+from src.api.inventory import router as inventory_router
 from src.config import get_settings
 from src.database import init_db_pool, close_db_pool
 
@@ -45,7 +46,7 @@ app.include_router(auth_router)
 app.include_router(map_router)
 app.include_router(buildings_router)
 app.include_router(market_router)
-
+app.include_router(inventory_router)
 
 @app.get("/")
 async def root() -> dict[str, str]:
