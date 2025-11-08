@@ -40,7 +40,7 @@ CREATE TABLE building (
     player_id UUID NOT NULL REFERENCES character(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     biome_type biome_type NOT NULL,
-    type VARCHAR(50) NOT NULL,
+    resource_type resource_type NOT NULL,
     level INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -48,7 +48,7 @@ CREATE TABLE building (
 );
 
 CREATE INDEX idx_building_player_id ON building(player_id);
-CREATE INDEX idx_building_type ON building(type);
+CREATE INDEX idx_building_resource_type ON building(resource_type);
 CREATE INDEX idx_building_biome_type ON building(biome_type);
 
 -- ============================================
@@ -167,7 +167,7 @@ CREATE VIEW v_building_details AS
 SELECT 
     b.h3_index,
     b.name AS building_name,
-    b.type AS building_type,
+    b.resource_type,
     b.biome_type,
     b.level,
     c.id AS character_id,
@@ -193,7 +193,7 @@ COMMENT ON COLUMN character.is_pvp IS 'true = PVP/online character, false = PVE/
 COMMENT ON TABLE building IS 'Player-owned structures on hexagonal map tiles';
 COMMENT ON COLUMN building.h3_index IS 'H3 geospatial index - natural primary key';
 COMMENT ON COLUMN building.biome_type IS 'Biome classification (e.g., Forest, Plains, Urban)';
-COMMENT ON COLUMN building.type IS 'Building function (e.g., Farm, Mine, Lumberyard)';
+COMMENT ON COLUMN building.resource_type IS 'Resource type produced by this building (WOOD, STONE, WHEAT)';
 
 COMMENT ON TYPE resource_type IS 'Available resource types: WOOD (lumber from forests), STONE (mined from quarries), WHEAT (grown in farmlands)';
 
