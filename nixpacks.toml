@@ -1,0 +1,9 @@
+[phases.setup]
+aptPkgs = [
+  'libgdal-dev',
+  'libgeos-dev', 
+  'libproj-dev',
+  'libexpat1-dev',
+  'libspatialindex-dev',
+  'gdal-bin'
+]
