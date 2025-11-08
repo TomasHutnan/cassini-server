@@ -16,29 +16,29 @@ async def get_building_by_h3(h3_index: str) -> dict | None:
     """
     return await fetch_one(
         '''
-        SELECT h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
+        SELECT h3_index, user_id, name, biome_type, resource_type, level, last_claim_at, created_at, updated_at
         FROM building WHERE h3_index = $1
         ''',
         h3_index
     )
 
 
-async def get_buildings_by_player(player_id: UUID) -> list[dict]:
-    """Fetch all buildings owned by a player.
+async def get_buildings_by_user(user_id: UUID) -> list[dict]:
+    """Fetch all buildings owned by a user.
     
     Args:
-        player_id: Player's character UUID
+        user_id: User's UUID
         
     Returns:
         List of building records
     """
     return await fetch_all(
         '''
-        SELECT h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
-        FROM building WHERE player_id = $1
+        SELECT h3_index, user_id, name, biome_type, resource_type, level, last_claim_at, created_at, updated_at
+        FROM building WHERE user_id = $1
         ORDER BY created_at DESC
         ''',
-        player_id
+        user_id
     )
 
 
@@ -53,7 +53,7 @@ async def get_buildings_in_area(h3_indexes: list[str]) -> list[dict]:
     """
     return await fetch_all(
         '''
-        SELECT h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
+        SELECT h3_index, user_id, name, biome_type, resource_type, level, last_claim_at, created_at, updated_at
         FROM building WHERE h3_index = ANY($1)
         ''',
         h3_indexes
@@ -62,7 +62,7 @@ async def get_buildings_in_area(h3_indexes: list[str]) -> list[dict]:
 
 async def create_building(
     h3_index: str,
-    player_id: UUID,
+    user_id: UUID,
     name: str,
     biome_type: str,
     resource_type: str,
@@ -72,7 +72,7 @@ async def create_building(
     
     Args:
         h3_index: H3 hexagonal index where building is placed
-        player_id: Owner's character UUID
+        user_id: Owner's user UUID
         name: Building name
         biome_type: Biome classification (ENUM: biome_type)
         resource_type: Resource produced by building (ENUM: resource_type)
@@ -86,11 +86,11 @@ async def create_building(
     """
     row = await fetch_one(
         '''
-        INSERT INTO building (h3_index, player_id, name, biome_type, resource_type, level)
+        INSERT INTO building (h3_index, user_id, name, biome_type, resource_type, level)
         VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
+        RETURNING h3_index, user_id, name, biome_type, resource_type, level, last_claim_at, created_at, updated_at
         ''',
-        h3_index, player_id, name, biome_type, resource_type, level
+        h3_index, user_id, name, biome_type, resource_type, level
     )
     if not row:
         raise RuntimeError("Failed to create building")
@@ -132,3 +132,23 @@ async def delete_building(h3_index: str) -> bool:
         h3_index
     )
     return result == "DELETE 1"
+
+
+async def claim_building_resources(h3_index: str) -> dict | None:
+    """Claim accumulated resources from a building and update last_claim_at.
+    
+    Args:
+        h3_index: Building's H3 index
+        
+    Returns:
+        Building record with updated last_claim_at, or None if not found
+    """
+    return await fetch_one(
+        '''
+        UPDATE building
+        SET last_claim_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+        WHERE h3_index = $1
+        RETURNING h3_index, user_id, name, biome_type, resource_type, level, last_claim_at, created_at, updated_at
+        ''',
+        h3_index
+    )
