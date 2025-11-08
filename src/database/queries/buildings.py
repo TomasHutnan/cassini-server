@@ -16,7 +16,7 @@ async def get_building_by_h3(h3_index: str) -> dict | None:
     """
     return await fetch_one(
         '''
-        SELECT h3_index, player_id, name, biome_type, type, level, created_at, updated_at
+        SELECT h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
         FROM building WHERE h3_index = $1
         ''',
         h3_index
@@ -34,7 +34,7 @@ async def get_buildings_by_player(player_id: UUID) -> list[dict]:
     """
     return await fetch_all(
         '''
-        SELECT h3_index, player_id, name, biome_type, type, level, created_at, updated_at
+        SELECT h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
         FROM building WHERE player_id = $1
         ORDER BY created_at DESC
         ''',
@@ -53,7 +53,7 @@ async def get_buildings_in_area(h3_indexes: list[str]) -> list[dict]:
     """
     return await fetch_all(
         '''
-        SELECT h3_index, player_id, name, biome_type, type, level, created_at, updated_at
+        SELECT h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
         FROM building WHERE h3_index = ANY($1)
         ''',
         h3_indexes
@@ -65,7 +65,7 @@ async def create_building(
     player_id: UUID,
     name: str,
     biome_type: str,
-    building_type: str,
+    resource_type: str,
     level: int = 1
 ) -> dict:
     """Create a new building.
@@ -74,8 +74,8 @@ async def create_building(
         h3_index: H3 hexagonal index where building is placed
         player_id: Owner's character UUID
         name: Building name
-        biome_type: Biome classification
-        building_type: Building function type
+        biome_type: Biome classification (ENUM: biome_type)
+        resource_type: Resource produced by building (ENUM: resource_type)
         level: Building level (default: 1)
         
     Returns:
@@ -86,11 +86,11 @@ async def create_building(
     """
     row = await fetch_one(
         '''
-        INSERT INTO building (h3_index, player_id, name, biome_type, type, level)
+        INSERT INTO building (h3_index, player_id, name, biome_type, resource_type, level)
         VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING h3_index, player_id, name, biome_type, type, level, created_at, updated_at
+        RETURNING h3_index, player_id, name, biome_type, resource_type, level, created_at, updated_at
         ''',
-        h3_index, player_id, name, biome_type, building_type, level
+        h3_index, player_id, name, biome_type, resource_type, level
     )
     if not row:
         raise RuntimeError("Failed to create building")
