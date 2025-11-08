@@ -371,8 +371,8 @@ async def test_buildings_flow():
                 headers={"Authorization": f"Bearer {user2_token}"}
             )
             print("   ✅ Cleanup complete")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"   ⚠️  Cleanup error: {e}")
     
     print("\n" + "="*50)
     print("✅ All building management tests completed!")

@@ -63,13 +63,13 @@ async def list_my_buildings(user_id: Annotated[UUID, Depends(get_user_id)]):
 @router.get("/area", response_model=BuildingListResponse)
 async def list_buildings_in_area(
     lat: float = Query(..., description="Center latitude coordinate", ge=-90, le=90),
-    lon: float = Query(..., description="Center longitude coordinate", ge=-180, le=180),
+    lon: float = Query(..., description="Center longitude coordinate", gt=-180, le=180),
     range_m: int = Query(200, description="Search radius in meters", ge=50, le=5000),
 ):
     """List all buildings within a geographic area.
 
     Returns all buildings within the specified radius from the center point,
-    using H3 hexagonal grid. Similar to the map endpoint.
+    using H3 hexagonal grid.
 
     Example usage:
     - `GET /buildings/area?lat=48.1486&lon=17.1077&range_m=200`
@@ -88,7 +88,8 @@ async def list_buildings_in_area(
     center_hex = h3.latlng_to_cell(lat, lon, resolution)
     
     # Calculate number of rings needed to cover the range
-    avg_hex_size = 9
+    # Use H3's edge_length to get the average hex edge length at this resolution (in meters)
+    avg_hex_size = h3.edge_length(resolution, unit='m')
     rings = max(1, int(range_m / avg_hex_size))
     
     # Get all hexagons in the area
@@ -241,7 +242,7 @@ async def delete_building(
     # Verify ownership
     if building["user_id"] != user_id:
         raise HTTPException(
-            status_code=403, detail="You don't own this building"
+            status_code=403, detail="You do not own this building"
         )
     
     # Delete the building

@@ -181,7 +181,7 @@ def can_afford(inventory: Dict[str, int], costs: Dict[str, int]) -> bool:
         True if player can afford the costs
     """
     for resource, cost in costs.items():
-        if inventory.get(resource.upper(), 0) < cost:
+        if inventory.get(resource, 0) < cost:
             return False
     return True
 
@@ -198,7 +198,7 @@ def get_missing_resources(inventory: Dict[str, int], costs: Dict[str, int]) -> D
     """
     missing = {}
     for resource, cost in costs.items():
-        current = inventory.get(resource.upper(), 0)
+        current = inventory.get(resource, 0)
         if current < cost:
             missing[resource] = cost - current
     return missing
