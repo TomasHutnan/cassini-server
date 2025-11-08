@@ -318,6 +318,51 @@ async def test_buildings_flow():
         
         print()
         
+        # Test 13: Get building costs configuration
+        print("1️⃣3️⃣ Testing get building costs for all building types...")
+        try:
+            costs_response = await client.get("/buildings/costs")
+            
+            if costs_response.status_code == 200:
+                costs = costs_response.json()
+                print("   ✅ Building costs retrieved successfully")
+                
+                # Check that all building types are present
+                building_types = ["WHEAT", "WOOD", "STONE"]
+                for building_type in building_types:
+                    if building_type in costs:
+                        type_costs = costs[building_type]
+                        print(f"\n   📊 {building_type} Building (Farm/Lumber Mill/Mine):")
+                        print(f"      Max Level: {type_costs['max_level']}")
+                        
+                        print("      Base Building Cost:")
+                        for resource in type_costs['base_building_cost']:
+                            print(f"        - {resource['resource_type']}: {resource['amount']}")
+                        
+                        print("      Base Upgrade Cost:")
+                        for resource in type_costs['base_upgrade_cost']:
+                            print(f"        - {resource['resource_type']}: {resource['amount']}")
+                    else:
+                        print(f"   ⚠️  Missing costs for {building_type} building type")
+                
+                # Verify that each building type has different costs
+                wheat_costs = costs['WHEAT']['base_building_cost']
+                wood_costs = costs['WOOD']['base_building_cost']
+                stone_costs = costs['STONE']['base_building_cost']
+                
+                if wheat_costs != wood_costs and wood_costs != stone_costs and wheat_costs != stone_costs:
+                    print("\n   ✅ Each building type has unique construction costs")
+                else:
+                    print("\n   ⚠️  Building types may have identical costs")
+                    
+            else:
+                print(f"   ❌ Failed: {costs_response.status_code}")
+                print(f"      {costs_response.text}")
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+        
+        print()
+        
         # Cleanup: Delete User 2's building if it exists
         print("🧹 Cleaning up test buildings...")
         try:

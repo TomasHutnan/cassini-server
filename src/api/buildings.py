@@ -13,6 +13,8 @@ from src.api.models.buildings import (
     BuildingResponse,
     BuildingListResponse,
     ClaimResourcesResponse,
+    BuildingCostsResponse,
+    ResourceAmount,
 )
 from src.database.queries.buildings import (
     get_building_by_h3,
@@ -27,6 +29,8 @@ from src.database.queries.inventory import (
 )
 from src.database.connection import execute_query
 from src.auth.dependencies import get_user_id
+from src.game_objects.building_costs import get_all_building_costs
+from src.game_objects.resources import Resource
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
 
@@ -144,6 +148,47 @@ async def create_building(
     building_dict["user_id"] = str(building_dict["user_id"])
     
     return BuildingResponse(**building_dict)
+
+
+@router.get("/costs", response_model=BuildingCostsResponse)
+async def get_costs():
+    """Get current building costs configuration for all building types.
+    
+    Returns the base costs for creating and upgrading each type of building.
+    Actual costs are calculated as: base_cost * level
+    
+    Each building type (Farm/WHEAT, Lumber Mill/WOOD, Mine/STONE) has different costs.
+    
+    Returns:
+        BuildingCostsResponse with costs for all building types
+    """
+    from src.api.models.buildings import BuildingTypeCosts
+    
+    all_costs = get_all_building_costs()
+    
+    # Build response with costs for each building type
+    response_data = {}
+    for resource_type, config in all_costs.items():
+        base_building_costs = [
+            ResourceAmount(resource_type=cost.resource_type, amount=cost.amount)
+            for cost in config.base_building_cost
+        ]
+        base_upgrade_costs = [
+            ResourceAmount(resource_type=cost.resource_type, amount=cost.amount)
+            for cost in config.base_upgrade_cost
+        ]
+        
+        response_data[resource_type] = BuildingTypeCosts(
+            base_building_cost=base_building_costs,
+            base_upgrade_cost=base_upgrade_costs,
+            max_level=config.max_level,
+        )
+    
+    return BuildingCostsResponse(
+        WHEAT=response_data[Resource.WHEAT.value],
+        WOOD=response_data[Resource.WOOD.value],
+        STONE=response_data[Resource.STONE.value],
+    )
 
 
 @router.get("/{h3_index}", response_model=BuildingResponse)

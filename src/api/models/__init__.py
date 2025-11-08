@@ -1,7 +1,13 @@
 """API request and response models."""
 
 from src.api.models.map import MapResponse, MapCenter, TileResponse
-from src.api.models.buildings import BuildingCreate, ClaimResourcesResponse
+from src.api.models.buildings import (
+    BuildingCreate,
+    BuildingResponse,
+    BuildingListResponse,
+    ClaimResourcesResponse,
+    BuildingCostsResponse,
+)
 from src.api.models.auth import (
     LoginRequest,
     RegisterRequest,
@@ -24,7 +30,10 @@ __all__ = [
     "TileResponse",
     # Building models
     "BuildingCreate",
+    "BuildingResponse",
+    "BuildingListResponse",
     "ClaimResourcesResponse",
+    "BuildingCostsResponse",
     # Auth models
     "LoginRequest",
     "RegisterRequest",
