@@ -6,6 +6,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from src.game_objects.resources import Resource
+
 from ..auth.dependencies import get_user_id
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
@@ -16,7 +18,7 @@ class BuildingCreate(BaseModel):
     """Data for creating a new building."""
     hex_id: str
     name: str
-    building_type: str
+    resource_type: Resource
 
 
 @router.get("/")
@@ -44,10 +46,7 @@ async def create_building(
     """Create a new building on a hex tile.
 
     Args:
-        hex_id: H3 hex ID where building will be placed
-        player_id: ID of the player creating the building
-        name: Name of the building
-        building_type: Type of building (e.g., 'farm', 'mine', 'city')
+        data: BuildingCreate 
 
     Returns:
         Created building data
@@ -60,7 +59,8 @@ async def create_building(
             "hex_id": data.hex_id,
             "player_id": str(user_id),
             "name": data.name,
-            "type": data.building_type,
+            # resource_type is an Enum; return its string value for JSON/DB
+            "resource_type": data.resource_type.value,
             "level": 1,
         },
         "message": "Building creation not yet implemented",
