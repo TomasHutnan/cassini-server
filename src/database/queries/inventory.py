@@ -77,7 +77,7 @@ async def get_inventory_item(user_id: UUID, resource_type: str) -> dict | None:
         ''',
         user_id, resource_type
     )
-    if not row or row.get('id') is None:
+    if not row:
         return None
     return row
 
