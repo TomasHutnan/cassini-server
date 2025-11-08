@@ -6,29 +6,17 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 
-from src.game_objects.resources import Resource
-
+from src.api.models.buildings import BuildingCreate, ClaimResourcesResponse
 from src.database.queries.buildings import get_building_by_h3
 from src.database.queries.inventory import (
     add_inventory_item,
     calculate_resource_production,
 )
 from src.database.connection import execute_query
-
 from src.auth.dependencies import get_user_id
 
 router = APIRouter(prefix="/buildings", tags=["buildings"])
-
-
-# Request models
-class BuildingCreate(BaseModel):
-    """Data for creating a new building."""
-
-    hex_id: str
-    name: str
-    resource_type: Resource
 
 
 @router.get("/")
@@ -109,16 +97,6 @@ async def delete_building(
     """
     # TODO: Implement building deletion with ownership validation
     raise HTTPException(status_code=404, detail="Building not found")
-
-
-# Response model for claim endpoint
-class ClaimResourcesResponse(BaseModel):
-    """Response from claiming building resources."""
-
-    resources_claimed: int
-    resource_type: str
-    new_inventory_total: int
-    seconds_elapsed: float
 
 
 @router.post("/{h3_index}/claim")

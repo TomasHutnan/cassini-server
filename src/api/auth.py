@@ -3,56 +3,21 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field
 
+from src.api.models.auth import (
+    LoginRequest,
+    RegisterRequest,
+    ChangePasswordRequest,
+    TokenResponse,
+    UserResponse,
+    RefreshTokenRequest,
+)
 from src.database.queries.users import create_user, get_user_by_name, update_user_password
 from src.auth.dependencies import get_current_user
 from src.auth.jwt import create_access_token, create_refresh_token, verify_token
 from src.auth.password import hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-# Models
-
-
-class LoginRequest(BaseModel):
-    """Login credentials."""
-
-    username: str = Field(..., min_length=3, max_length=255)
-    password: str = Field(..., min_length=8)
-
-
-class RegisterRequest(BaseModel):
-    """Registration data."""
-
-    username: str = Field(..., min_length=3, max_length=255)
-    password: str = Field(..., min_length=8)
-
-
-class ChangePasswordRequest(BaseModel):
-    """Password change data."""
-
-    old_password: str = Field(..., min_length=8)
-    new_password: str = Field(..., min_length=8)
-
-
-class TokenResponse(BaseModel):
-    """JWT token response."""
-
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-
-class UserResponse(BaseModel):
-    """User information response."""
-
-    id: str
-    username: str
-    created_at: str
-
-
-# Endpoints
 
 
 @router.post(
@@ -138,11 +103,6 @@ async def login(data: LoginRequest):
         access_token=access_token,
         refresh_token=refresh_token,
     )
-
-
-class RefreshTokenRequest(BaseModel):
-    """Refresh token request."""
-    refresh_token: str
 
 
 @router.post("/refresh", response_model=TokenResponse)
