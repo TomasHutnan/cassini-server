@@ -7,6 +7,6 @@ from .inventory import InventoryItem
 class Building:
     player_id: str
     name: str
-    type: Resource
+    resource_type: Resource
     level: int
     inventory: list[InventoryItem] = field(default_factory=list)
