@@ -39,7 +39,7 @@ CREATE TABLE building (
     h3_index VARCHAR(20) PRIMARY KEY,
     player_id UUID NOT NULL REFERENCES character(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
-    biome_type VARCHAR(50) NOT NULL,
+    biome_type biome_type NOT NULL,
     type VARCHAR(50) NOT NULL,
     level INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -59,6 +59,25 @@ CREATE TYPE resource_type AS ENUM (
     'WOOD',   -- Lumber harvested from forests
     'STONE',  -- Stone mined from quarries
     'WHEAT'   -- Grain grown in farmlands
+);
+
+-- ============================================
+-- BIOME_TYPE ENUM
+-- Available biome types in the game
+-- ============================================
+CREATE TYPE biome_type AS ENUM (
+    'TREE_COVER',           -- Tree cover (10)
+    'SHRUBLAND',            -- Shrubland (20)
+    'GRASSLAND',            -- Grassland (30)
+    'CROPLAND',             -- Cropland (40)
+    'WETLAND',              -- Herbaceous wetland (50)
+    'MANGROVES',            -- Mangroves (60)
+    'MOSS_LICHEN',          -- Moss and lichen (70)
+    'BARE',                 -- Bare/sparse vegetation (80)
+    'BUILT_UP',             -- Built-up (90)
+    'WATER',                -- Permanent water bodies (100)
+    'SNOW_ICE',             -- Snow and ice (110)
+    'UNCLASSIFIABLE'        -- Unclassifiable (254)
 );
 
 -- ============================================
