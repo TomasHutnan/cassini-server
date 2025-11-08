@@ -1,65 +1,24 @@
 import requests
 import rasterio
 from io import BytesIO
-import matplotlib.pyplot as plt
-import numpy as np
 import math
 import h3
-from matplotlib.patches import Polygon
-from matplotlib.collections import PatchCollection
 import json
-import time
 from dotenv import load_dotenv
 import os
+
+from src.game_objects.biome import BiomeType, COPERNICUS_CODE_TO_BIOME
 
 # Load environment variables from .env file
 load_dotenv()
 
 # ==================== CONFIGURATION ====================
-# Location (latitude, longitude)
-#CENTER_LAT, CENTER_LON = 48.69740220446884, 21.28180222871356
-
-# Area size in meters (width, height)
-AREA_SIZE_M = (1000, 1000)  # 1km x 1km
-
 # Hexagon resolution in meters (approximate diameter of each hex)
 HEX_SIZE_M = 10  # 10 meters per hex
-
-# ==================================================
 
 # Credentials
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-
-# Biome definitions
-BIOMES = {
-    10: "Tree cover",
-    20: "Shrubland",
-    30: "Grassland",
-    40: "Cropland",
-    50: "Herbaceous wetland",
-    60: "Mangroves",
-    70: "Moss and lichen",
-    80: "Bare/sparse vegetation",
-    90: "Built-up",
-    100: "Permanent water bodies",
-    110: "Snow and ice",
-    254: "Unclassifiable",
-}
-
-BIOME_COLORS = {
-    "Tree cover": "#006400",
-    "Shrubland": "#ffbb22",
-    "Grassland": "#ffff4c",
-    "Cropland": "#f096ff",
-    "Herbaceous wetland": "#0096a0",
-    "Mangroves": "#00cf75",
-    "Moss and lichen": "#fae6a0",
-    "Bare/sparse vegetation": "#b4b4b4",
-    "Permanent water bodies": "#0064c8",
-    "Snow and ice": "#f0f0f0",
-    "Unclassifiable": "#0a0a0a",
-}
 
 
 def get_euhydro_rivers(lat_min, lat_max, lon_min, lon_max, layer_ids=None):
@@ -247,15 +206,20 @@ def get_euhydro_lakes(lat_min, lat_max, lon_min, lon_max, layer_ids=None):
     return lakes
 
 
-def fill_buildup_and_water(grid):
-    """Replace built-up and water cells with neighboring biomes."""
+def fill_buildup_from_neighbors(grid):
+    """Replace built-up and water cells with neighboring biomes.
+    
+    Built-up areas and water bodies from Copernicus are replaced with 
+    the most common neighboring biome to represent the underlying terrain.
+    If no valid neighbors exist, defaults to GRASSLAND.
+    """
     height, width = len(grid), len(grid[0])
     result = [row[:] for row in grid]
     to_fill = {
         (i, j)
         for i in range(height)
         for j in range(width)
-        if result[i][j] in ["Built-up", "Permanent water bodies"]
+        if result[i][j] == BiomeType.BUILT_UP
     }
 
     while to_fill:
@@ -267,13 +231,19 @@ def fill_buildup_and_water(grid):
                 for nj in range(j - 1, j + 2)
                 if 0 <= ni < height
                 and 0 <= nj < width
-                and result[ni][nj]
-                not in ["Built-up", "Permanent water bodies"]
+                and result[ni][nj] != BiomeType.BUILT_UP
             ]
 
             if neighbors:
                 result[i][j] = max(set(neighbors), key=neighbors.count)
                 filled.append((i, j))
+
+        # Break infinite loop if no progress made
+        if not filled:
+            # Fill remaining cells with default biome (GRASSLAND)
+            for i, j in to_fill:
+                result[i][j] = BiomeType.GRASSLAND
+            break
 
         for pos in filled:
             to_fill.remove(pos)
@@ -362,8 +332,19 @@ def get_biomes(lat, lon, area_size_m, pixel_size_m):
     with rasterio.open(BytesIO(response.content)) as src:
         codes = src.read(1)
 
-    grid = [[BIOMES.get(code, "Unknown") for code in row] for row in codes]
-    grid = fill_buildup_and_water(grid)
+    # Convert Copernicus codes to BiomeType enum
+    grid = []
+    for row in codes:
+        grid_row = []
+        for code in row:
+            code_int = int(code)
+            if code_int in COPERNICUS_CODE_TO_BIOME:
+                grid_row.append(COPERNICUS_CODE_TO_BIOME[code_int])
+            else:
+                grid_row.append(BiomeType.UNCLASSIFIABLE)
+        grid.append(grid_row)
+    
+    grid = fill_buildup_from_neighbors(grid)
 
     return grid, bounds[1], bounds[3], bounds[0], bounds[2]
 
@@ -659,79 +640,78 @@ def snap_lakes_to_hexes(lakes, hexagons, lat_correction):
 
 
 
-def export_to_json(
-    hex_biomes,
-    river_hexes,
-    lake_hexes,
-    filename="hex_biomes.json",
-    include_boundary=False,
-):
-    """Export hex data to JSON including water features.
-
-    When include_boundary is True, each record contains the polygon boundary
-    coordinates for the hex. Defaults to False to keep the JSON small.
+def format_output(hex_biomes, water_hexes):
+    """Export hex data to JSON with BiomeType enum values.
+    
+    Args:
+        hex_biomes: Dict mapping hex_id to BiomeType
+        water_hexes: Set of hex_ids that contain water (rivers/lakes)
+        
+    Returns:
+        JSON string containing tile data
     """
     data = []
     for hid, biome in hex_biomes.items():
+        # Override biome with WATER for hexes containing rivers/lakes
+        if hid in water_hexes:
+            biome = BiomeType.WATER
+            
         lat, lon = h3.cell_to_latlng(hid)
         record = {
             "hex_id": hid,
             "lat": lat,
             "lon": lon,
-            "biome": biome,
-            "is_river": hid in river_hexes,
-            "is_lake": hid in lake_hexes,
+            "biome": biome.value,  # Use .value to get string representation
+            "boundary": [[c[0], c[1]] for c in h3.cell_to_boundary(hid)]
         }
-        if include_boundary:
-            record["boundary"] = [
-                [c[0], c[1]] for c in h3.cell_to_boundary(hid)
-            ]
         data.append(record)
 
-    return json.dumps(data)
+    return data
 
 
-def generate_map(CENTER_LAT,CENTER_LON,RANGE):
-
-    t0 = time.perf_counter()
+def generate_map(center_lat: float, center_lon: float, range_m: int) -> list:
+    """Generate hexagonal map with biome and water data.
+    
+    Args:
+        center_lat: Center latitude coordinate
+        center_lon: Center longitude coordinate
+        range_m: Map range in meters (creates square area)
+        
+    Returns:
+        JSON string containing map tile data
+    """
+    # Fetch biome data from Copernicus
     grid, lat_min, lat_max, lon_min, lon_max = get_biomes(
-        CENTER_LAT, CENTER_LON, (RANGE,RANGE), HEX_SIZE_M
+        center_lat, center_lon, (range_m, range_m), HEX_SIZE_M
     )
-    t1 = time.perf_counter()
 
+    # Fetch water features from EU-Hydro
     rivers = get_euhydro_rivers(lat_min, lat_max, lon_min, lon_max)
-    t2 = time.perf_counter()
     lakes = get_euhydro_lakes(lat_min, lat_max, lon_min, lon_max)
-    t3 = time.perf_counter()
 
+    # Map biomes to hexagons
     hex_biomes = map_to_hexagons(
-        CENTER_LAT,
-        CENTER_LON,
+        center_lat,
+        center_lon,
         grid,
         lat_min,
         lat_max,
         lon_min,
         lon_max,
-        (RANGE,RANGE),
+        (range_m, range_m),
         HEX_SIZE_M,
     )
-    t4 = time.perf_counter()
 
     # Snap water features to hexagons
     sample_hex = list(hex_biomes.keys())[0]
-    center_lat, _ = h3.cell_to_latlng(sample_hex)
-    lat_corr = math.cos(math.radians(center_lat))
+    center_lat_hex, _ = h3.cell_to_latlng(sample_hex)
+    lat_correction = math.cos(math.radians(center_lat_hex))
 
-    river_hexes = (
-        snap_rivers_to_hexes(rivers, hex_biomes.keys(), lat_corr)
-        if rivers
-        else set()
-    )
-    t5 = time.perf_counter()
-    lake_hexes = (
-        snap_lakes_to_hexes(lakes, hex_biomes.keys(), lat_corr)
-        if lakes
-        else set()
-    )
-    t6 = time.perf_counter()
-    return export_to_json(hex_biomes, river_hexes, lake_hexes, include_boundary=True)
+    # Combine river and lake hexes into single water set
+    water_hexes = set()
+    if rivers:
+        water_hexes.update(snap_rivers_to_hexes(rivers, hex_biomes.keys(), lat_correction))
+    if lakes:
+        water_hexes.update(snap_lakes_to_hexes(lakes, hex_biomes.keys(), lat_correction))
+
+    return format_output(hex_biomes, water_hexes)
