@@ -65,11 +65,11 @@ async def get_inventory_item(user_id: UUID, resource_type: str) -> dict | None:
     Args:
         user_id: User's UUID
         resource_type: Resource type enum value
-        
+    
     Returns:
-        Inventory item as dict or None if not found
+        Inventory item record as dict if found, or None if the item does not exist (empty result normalization).
     """
-    return await fetch_one(
+    row = await fetch_one(
         '''
         SELECT id, user_id, resource_type, quantity, created_at, updated_at
         FROM inventory_item
@@ -77,6 +77,9 @@ async def get_inventory_item(user_id: UUID, resource_type: str) -> dict | None:
         ''',
         user_id, resource_type
     )
+    if not row:
+        return None
+    return row
 
 
 async def add_inventory_item(
