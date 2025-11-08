@@ -4,3 +4,4 @@ class Resource(Enum):
     WHEAT = "WHEAT"
     WOOD = "WOOD"
     STONE = "STONE"
+    MONEY = "MONEY"

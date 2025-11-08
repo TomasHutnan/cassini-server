@@ -10,6 +10,13 @@ from src.api.models.auth import (
     UserResponse,
     RefreshTokenRequest,
 )
+from src.api.models.inventory import InventoryItemResponse, InventoryAdjustRequest
+from src.api.models.market import (
+    MarketOrderBase,
+    MarketOrderCreate,
+    MarketOrderUpdate,
+    MarketOrderOut
+)
 
 __all__ = [
     # Map models
@@ -26,4 +33,12 @@ __all__ = [
     "TokenResponse",
     "UserResponse",
     "RefreshTokenRequest",
+    # Market models
+    "MarketOrderBase",
+    "MarketOrderCreate",
+    "MarketOrderUpdate",
+    "MarketOrderOut",
+    # Inventory models
+    "InventoryItemResponse",
+    "InventoryAdjustRequest",
 ]

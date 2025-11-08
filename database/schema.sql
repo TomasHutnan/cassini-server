@@ -85,6 +85,27 @@ CREATE INDEX idx_inventory_user_id ON inventory_item(user_id);
 CREATE INDEX idx_inventory_resource_type ON inventory_item(resource_type);
 
 -- ============================================
+-- MARKET_ORDER TABLE
+-- Buy and Sell orders on the market
+-- ============================================
+CREATE TABLE market_order (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    order_type VARCHAR(10) NOT NULL CHECK (order_type IN ('BUY','SELL')),
+    resource_type resource_type NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    total_price INTEGER NOT NULL CHECK (total_price >= 0),
+    status VARCHAR(10) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'CLOSED')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_market_order_user_id ON market_order(user_id);
+CREATE INDEX idx_market_order_order_type ON market_order(order_type);
+CREATE INDEX idx_market_order_resource_type ON market_order(resource_type);
+CREATE INDEX idx_market_order_status ON market_order(status);
+
+-- ============================================
 -- TRIGGERS
 -- Auto-update updated_at timestamp
 -- ============================================
@@ -103,6 +124,9 @@ CREATE TRIGGER update_building_updated_at BEFORE UPDATE ON building
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_inventory_item_updated_at BEFORE UPDATE ON inventory_item
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_market_order_updated_at BEFORE UPDATE ON market_order
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
@@ -156,3 +180,10 @@ COMMENT ON TYPE resource_type IS 'Available resource types: WOOD (lumber from fo
 COMMENT ON TABLE inventory_item IS 'User inventory - buildings generate resources on claim based on last_claim_at timestamp';
 COMMENT ON COLUMN inventory_item.user_id IS 'References user who owns the resources';
 COMMENT ON COLUMN inventory_item.resource_type IS 'Type of resource stored (ENUM: WOOD, STONE, WHEAT)';
+
+COMMENT ON TABLE market_order IS 'Market buy/sell orders';
+COMMENT ON COLUMN market_order.order_type IS 'Type of order: BUY wants to acquire resource; SELL offers to provide resource';
+COMMENT ON COLUMN market_order.resource_type IS 'Resource being traded (cannot be MONEY)';
+COMMENT ON COLUMN market_order.amount IS 'Number of units of resource to buy/sell';
+COMMENT ON COLUMN market_order.total_price IS 'Total price for the entire order denominated in MONEY';
+COMMENT ON COLUMN market_order.status IS 'OPEN=active, CLOSED=filled/completed';
