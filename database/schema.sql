@@ -42,6 +42,7 @@ CREATE INDEX idx_building_last_claim_at ON building(last_claim_at);
 -- Available resource types in the game
 -- ============================================
 CREATE TYPE resource_type AS ENUM (
+    'MONEY',  -- Currency used for trading
     'WOOD',   -- Lumber harvested from forests
     'STONE',  -- Stone mined from quarries
     'WHEAT'   -- Grain grown in farmlands
@@ -91,19 +92,19 @@ CREATE INDEX idx_inventory_resource_type ON inventory_item(resource_type);
 CREATE TABLE market_order (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-    order_type VARCHAR(10) NOT NULL CHECK (order_type IN ('BUY','SELL')),
+    is_buy_order BOOLEAN NOT NULL, -- true=BUY, false=SELL
     resource_type resource_type NOT NULL,
     amount INTEGER NOT NULL CHECK (amount > 0),
     total_price INTEGER NOT NULL CHECK (total_price >= 0),
-    status VARCHAR(10) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'CLOSED')),
+    is_open BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_market_order_user_id ON market_order(user_id);
-CREATE INDEX idx_market_order_order_type ON market_order(order_type);
+CREATE INDEX idx_market_order_is_buy ON market_order(is_buy_order);
 CREATE INDEX idx_market_order_resource_type ON market_order(resource_type);
-CREATE INDEX idx_market_order_status ON market_order(status);
+CREATE INDEX idx_market_order_is_open ON market_order(is_open);
 
 -- ============================================
 -- TRIGGERS
@@ -182,8 +183,8 @@ COMMENT ON COLUMN inventory_item.user_id IS 'References user who owns the resour
 COMMENT ON COLUMN inventory_item.resource_type IS 'Type of resource stored (ENUM: WOOD, STONE, WHEAT)';
 
 COMMENT ON TABLE market_order IS 'Market buy/sell orders';
-COMMENT ON COLUMN market_order.order_type IS 'Type of order: BUY wants to acquire resource; SELL offers to provide resource';
-COMMENT ON COLUMN market_order.resource_type IS 'Resource being traded (cannot be MONEY)';
+COMMENT ON COLUMN market_order.is_buy_order IS 'True if BUY order, false if SELL';
+COMMENT ON COLUMN market_order.resource_type IS 'Resource being traded (price denominated in MONEY)';
 COMMENT ON COLUMN market_order.amount IS 'Number of units of resource to buy/sell';
 COMMENT ON COLUMN market_order.total_price IS 'Total price for the entire order denominated in MONEY';
-COMMENT ON COLUMN market_order.status IS 'OPEN=active, CLOSED=filled/completed';
+COMMENT ON COLUMN market_order.is_open IS 'True if order is active (OPEN), false if filled/closed';

@@ -1,25 +1,23 @@
-"""Market management API endpoints."""
+"""Market management API endpoints using boolean flags (is_buy_order, is_open)."""
 
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, model_validator
 
 from src.game_objects.resources import Resource
 from src.database.connection import get_db_connection
 from src.database.queries.market import (
-    delete_market_order,
-    get_market_order,
-    list_market_orders,
-    update_market_order,
-    close_market_order,
+    get_market_order as db_get,
+    list_market_orders as db_list,
+    update_market_order as db_update,
+    close_market_order as db_close,
 )
 
 from src.api.models.market import (
     MarketOrderCreate,
     MarketOrderOut,
-    MarketOrderUpdate,
+    MarketOrderUpdate
 )
 
 from ..auth.dependencies import get_user_id
@@ -31,29 +29,28 @@ async def create_order(
     data: MarketOrderCreate,
     user_id: Annotated[UUID, Depends(get_user_id)],
 ):
-    """Create a new market order (buy or sell) and reserve required assets in inventory."""
     async with get_db_connection() as conn:
         async with conn.transaction():
-            if data.order_type == "BUY":
+            if data.is_buy_order:
                 money = await conn.fetchrow(
                     "SELECT id, quantity FROM inventory_item WHERE user_id = $1 AND resource_type = 'MONEY'::resource_type FOR UPDATE",
                     user_id,
                 )
                 if not money or money["quantity"] < data.total_price:
-                    raise HTTPException(status_code=400, detail="Insufficient MONEY for BUY order")
+                    raise HTTPException(status_code=400, detail="Insufficient MONEY for buy order")
                 await conn.execute(
                     "UPDATE inventory_item SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
                     data.total_price,
                     money["id"],
                 )
-            else:  # SELL
+            else:
                 resource = await conn.fetchrow(
                     "SELECT id, quantity FROM inventory_item WHERE user_id = $1 AND resource_type = $2::resource_type FOR UPDATE",
                     user_id,
                     data.resource_type.value,
                 )
                 if not resource or resource["quantity"] < data.amount:
-                    raise HTTPException(status_code=400, detail="Insufficient resource for SELL order")
+                    raise HTTPException(status_code=400, detail="Insufficient resource for sell order")
                 await conn.execute(
                     "UPDATE inventory_item SET quantity = quantity - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
                     data.amount,
@@ -61,56 +58,80 @@ async def create_order(
                 )
             row = await conn.fetchrow(
                 """
-                INSERT INTO market_order (user_id, order_type, resource_type, amount, total_price)
+                INSERT INTO market_order (user_id, is_buy_order, resource_type, amount, total_price)
                 VALUES ($1, $2, $3::resource_type, $4, $5)
-                RETURNING id, user_id, order_type, resource_type, amount, total_price, status, created_at, updated_at
+                RETURNING id, user_id, is_buy_order, resource_type, amount, total_price, is_open, created_at, updated_at
                 """,
                 user_id,
-                data.order_type,
+                data.is_buy_order,
                 data.resource_type.value,
                 data.amount,
                 data.total_price,
             )
     if not row:
         raise HTTPException(status_code=500, detail="Failed to create order")
-    row["resource_type"] = Resource(row["resource_type"])  # type: ignore[index]
-    return row  # type: ignore[return-value]
+    return MarketOrderOut(
+        id=row["id"],
+        user_id=row["user_id"],
+        is_buy_order=row["is_buy_order"],
+        resource_type=Resource(row["resource_type"]),
+        amount=row["amount"],
+        total_price=row["total_price"],
+        is_open=row["is_open"],
+        created_at=str(row["created_at"]),
+        updated_at=str(row["updated_at"]),
+    )
 
 
 @router.get("/orders", response_model=list[MarketOrderOut])
 async def read_orders(
-    order_type: Literal["BUY", "SELL"] | None = None,
+    is_buy_order: bool | None = None,
     resource_type: Resource | None = None,
     user_id: UUID | None = None,
+    include_closed: bool = False,
     limit: int = 50,
     offset: int = 0,
 ):
-    """Read market orders.
-
-    If order_type is provided, returns only BUY or SELL orders. Otherwise, returns both.
-    By default, returns only OPEN orders unless include_closed is True.
-    Supports pagination with limit and offset.
-    """
-    rows = await list_market_orders(
-        order_type=order_type,
+    rows = await db_list(
+        is_buy_order=is_buy_order,
         resource_type=resource_type.value if resource_type else None,
         user_id=user_id,
+        include_closed=include_closed,
         limit=max(limit, 1),
         offset=max(offset, 0),
     )
-    # Cast resource_type to Resource
-    for r in rows:
-        r["resource_type"] = Resource(r["resource_type"])  # type: ignore[index]
-    return rows  # type: ignore[return-value]
+    return [
+        MarketOrderOut(
+            id=r["id"],
+            user_id=r["user_id"],
+            is_buy_order=r["is_buy_order"],
+            resource_type=Resource(r["resource_type"]),
+            amount=r["amount"],
+            total_price=r["total_price"],
+            is_open=r["is_open"],
+            created_at=str(r["created_at"]),
+            updated_at=str(r["updated_at"]),
+        )
+        for r in rows
+    ]
 
 
 @router.get("/orders/{order_id}", response_model=MarketOrderOut)
 async def read_order(order_id: UUID):
-    row = await get_market_order(order_id)
-    if not row:
+    r = await db_get(order_id)
+    if not r:
         raise HTTPException(status_code=404, detail="Order not found")
-    row["resource_type"] = Resource(row["resource_type"])  # type: ignore[index]
-    return row  # type: ignore[return-value]
+    return MarketOrderOut(
+        id=r["id"],
+        user_id=r["user_id"],
+        is_buy_order=r["is_buy_order"],
+        resource_type=Resource(r["resource_type"]),
+        amount=r["amount"],
+        total_price=r["total_price"],
+        is_open=r["is_open"],
+        created_at=str(r["created_at"]),
+        updated_at=str(r["updated_at"]),
+    )
 
 
 @router.patch("/orders/{order_id}", response_model=MarketOrderOut)
@@ -119,20 +140,19 @@ async def update_order(
     data: MarketOrderUpdate,
     user_id: Annotated[UUID, Depends(get_user_id)],
 ):
-    existing = await get_market_order(order_id)
+    existing = await db_get(order_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Order not found")
     if existing["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to modify this order")
-    if existing["status"] != "OPEN":
-        raise HTTPException(status_code=400, detail="Only OPEN orders can be modified")
+    if not existing["is_open"]:
+        raise HTTPException(status_code=400, detail="Only open orders can be modified")
     new_resource = data.resource_type.value if data.resource_type else existing["resource_type"]
     new_amount = data.amount if data.amount is not None else existing["amount"]
     new_price = data.total_price if data.total_price is not None else existing["total_price"]
     async with get_db_connection() as conn:
         async with conn.transaction():
-            if existing["order_type"] == "SELL":
-                # Adjust resource reservation
+            if not existing["is_buy_order"]:  # SELL
                 resource_row = await conn.fetchrow(
                     "SELECT id, quantity FROM inventory_item WHERE user_id = $1 AND resource_type = $2::resource_type FOR UPDATE",
                     user_id,
@@ -172,7 +192,7 @@ async def update_order(
                                 -delta,
                                 resource_row["id"],
                             )
-            else:  # BUY order
+            else:  # BUY
                 money_row = await conn.fetchrow(
                     "SELECT id, quantity FROM inventory_item WHERE user_id = $1 AND resource_type = 'MONEY'::resource_type FOR UPDATE",
                     user_id,
@@ -193,7 +213,7 @@ async def update_order(
                             -price_delta,
                             money_row["id"],
                         )
-            updated = await update_market_order(
+            updated = await db_update(
                 order_id=order_id,
                 user_id=user_id,
                 resource_type=new_resource if data.resource_type else None,
@@ -202,8 +222,17 @@ async def update_order(
             )
     if not updated:
         raise HTTPException(status_code=500, detail="Failed to update order")
-    updated["resource_type"] = Resource(updated["resource_type"])  # type: ignore[index]
-    return updated  # type: ignore[return-value]
+    return MarketOrderOut(
+        id=updated["id"],
+        user_id=updated["user_id"],
+        is_buy_order=updated["is_buy_order"],
+        resource_type=Resource(updated["resource_type"]),
+        amount=updated["amount"],
+        total_price=updated["total_price"],
+        is_open=updated["is_open"],
+        created_at=str(updated["created_at"]),
+        updated_at=str(updated["updated_at"]),
+    )
 
 
 @router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -211,48 +240,35 @@ async def delete_order(
     order_id: UUID,
     user_id: Annotated[UUID, Depends(get_user_id)],
 ):
-    existing = await get_market_order(order_id)
+    existing = await db_get(order_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Order not found")
-    if existing["status"] != "OPEN":
-        raise HTTPException(status_code=400, detail="Only OPEN orders can be deleted")
+    if not existing["is_open"]:
+        raise HTTPException(status_code=400, detail="Only open orders can be deleted")
     if existing["user_id"] != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this order")
 
-    # Refund reservation and delete within a single transaction
     async with get_db_connection() as conn:
         async with conn.transaction():
-            # Lock and re-validate
             order = await conn.fetchrow(
-                "SELECT id, user_id, order_type, resource_type, amount, total_price, status FROM market_order WHERE id = $1 FOR UPDATE",
+                "SELECT id, user_id, is_buy_order, resource_type, amount, total_price, is_open FROM market_order WHERE id = $1 FOR UPDATE",
                 order_id,
             )
-            if not order:
-                raise HTTPException(status_code=404, detail="Order not found")
-            if order["user_id"] != user_id:
-                raise HTTPException(status_code=403, detail="Not authorized to delete this order")
-            if order["status"] != "OPEN":
-                raise HTTPException(status_code=400, detail="Only OPEN orders can be deleted")
-
-            if order["order_type"] == "BUY":
-                # Refund MONEY to creator
+            if not order or order["user_id"] != user_id or not order["is_open"]:
+                raise HTTPException(status_code=400, detail="Order cannot be deleted")
+            if order["is_buy_order"]:
                 await conn.execute(
-                    "INSERT INTO inventory_item (user_id, resource_type, quantity) VALUES ($1, 'MONEY'::resource_type, $2)\n"
-                    "ON CONFLICT (user_id, resource_type) DO UPDATE SET quantity = inventory_item.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP",
+                    "INSERT INTO inventory_item (user_id, resource_type, quantity) VALUES ($1, 'MONEY'::resource_type, $2)\n                     ON CONFLICT (user_id, resource_type) DO UPDATE SET quantity = inventory_item.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP",
                     user_id,
                     order["total_price"],
                 )
             else:
-                # Refund resource to creator
                 await conn.execute(
-                    "INSERT INTO inventory_item (user_id, resource_type, quantity) VALUES ($1, $2::resource_type, $3)\n"
-                    "ON CONFLICT (user_id, resource_type) DO UPDATE SET quantity = inventory_item.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP",
+                    "INSERT INTO inventory_item (user_id, resource_type, quantity) VALUES ($1, $2::resource_type, $3)\n                     ON CONFLICT (user_id, resource_type) DO UPDATE SET quantity = inventory_item.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP",
                     user_id,
                     order["resource_type"],
                     order["amount"],
                 )
-
-            # Delete the order
             res = await conn.execute(
                 "DELETE FROM market_order WHERE id = $1 AND user_id = $2",
                 order_id,
@@ -262,20 +278,21 @@ async def delete_order(
                 raise HTTPException(status_code=500, detail="Failed to delete order")
     return None
 
+
 @router.post("/orders/{order_id}/fill", response_model=MarketOrderOut)
 async def fill_order(
     order_id: UUID,
-    filler_user_id: Annotated[UUID, Depends(get_user_id)],
+    user_id: Annotated[UUID, Depends(get_user_id)],
 ):
-    existing = await get_market_order(order_id)
+    existing = await db_get(order_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Order not found")
-    if existing["status"] != "OPEN":
+    if not existing["is_open"]:
         raise HTTPException(status_code=400, detail="Order is not open")
+    filler_user_id = user_id
     async with get_db_connection() as conn:
         async with conn.transaction():
-            if existing["order_type"] == "BUY":
-                # filler sells resource
+            if existing["is_buy_order"]:
                 resource_row = await conn.fetchrow(
                     "SELECT id, quantity FROM inventory_item WHERE user_id = $1 AND resource_type = $2::resource_type FOR UPDATE",
                     filler_user_id,
@@ -288,7 +305,6 @@ async def fill_order(
                     existing["amount"],
                     resource_row["id"],
                 )
-                # Pay seller money
                 seller_money = await conn.fetchrow(
                     "SELECT id FROM inventory_item WHERE user_id = $1 AND resource_type = 'MONEY'::resource_type FOR UPDATE",
                     filler_user_id,
@@ -305,14 +321,13 @@ async def fill_order(
                         filler_user_id,
                         existing["total_price"],
                     )
-                # Give buyer resource
                 await conn.execute(
                     "INSERT INTO inventory_item (user_id, resource_type, quantity) VALUES ($1, $2::resource_type, $3) ON CONFLICT (user_id, resource_type) DO UPDATE SET quantity = inventory_item.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP",
                     existing["user_id"],
                     existing["resource_type"],
                     existing["amount"],
                 )
-            else:  # SELL order
+            else:
                 buyer_money = await conn.fetchrow(
                     "SELECT id, quantity FROM inventory_item WHERE user_id = $1 AND resource_type = 'MONEY'::resource_type FOR UPDATE",
                     filler_user_id,
@@ -324,14 +339,12 @@ async def fill_order(
                     existing["total_price"],
                     buyer_money["id"],
                 )
-                # Transfer resource to buyer (already reserved by creator)
                 await conn.execute(
                     "INSERT INTO inventory_item (user_id, resource_type, quantity) VALUES ($1, $2::resource_type, $3) ON CONFLICT (user_id, resource_type) DO UPDATE SET quantity = inventory_item.quantity + EXCLUDED.quantity, updated_at = CURRENT_TIMESTAMP",
                     filler_user_id,
                     existing["resource_type"],
                     existing["amount"],
                 )
-                # Pay seller
                 seller_money = await conn.fetchrow(
                     "SELECT id FROM inventory_item WHERE user_id = $1 AND resource_type = 'MONEY'::resource_type FOR UPDATE",
                     existing["user_id"],
@@ -348,8 +361,17 @@ async def fill_order(
                         existing["user_id"],
                         existing["total_price"],
                     )
-            closed = await close_market_order(order_id)
+            closed = await db_close(order_id)
     if not closed:
         raise HTTPException(status_code=400, detail="Unable to close order")
-    closed["resource_type"] = Resource(closed["resource_type"])  # type: ignore[index]
-    return closed  # type: ignore[return-value]
+    return MarketOrderOut(
+        id=closed["id"],
+        user_id=closed["user_id"],
+        is_buy_order=closed["is_buy_order"],
+        resource_type=Resource(closed["resource_type"]),
+        amount=closed["amount"],
+        total_price=closed["total_price"],
+        is_open=closed["is_open"],
+        created_at=str(closed["created_at"]),
+        updated_at=str(closed["updated_at"]),
+    )

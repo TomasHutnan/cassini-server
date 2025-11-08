@@ -1,5 +1,5 @@
 """
-Comprehensive tests for market endpoints and inventory interactions.
+Comprehensive tests for market endpoints and inventory interactions using is_buy_order/is_open.
 
 Run with: python tests/test_market.py
 """
@@ -45,7 +45,6 @@ async def set_up_user_with(
     wheat: int = 0,
 ):
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=20, headers=auth_headers(access_token)) as client:
-        # Adjust each positive amount
         if money:
             r = await client.post("/inventory/adjust", json={"resource_type": "MONEY", "quantity_delta": money})
             assert r.status_code == 200, r.text
@@ -79,7 +78,7 @@ async def get_qty(token: str, resource_type: str) -> int:
 
 
 async def test_market_flow():
-    print("🧪 Market endpoints comprehensive tests\n")
+    print("🧪 Market endpoints comprehensive tests (booleans)\n")
 
     if not await ensure_server():
         print("❌ Server not running at", BASE_URL)
@@ -105,11 +104,13 @@ async def test_market_flow():
         print("1) Creating BUY order (buyer reserves MONEY)...")
         resp = await client.post(
             "/market/orders",
-            json={"order_type": "BUY", "resource_type": "WOOD", "amount": 10, "total_price": 100},
+            json={"is_buy_order": True, "resource_type": "WOOD", "amount": 10, "total_price": 100},
         )
         assert resp.status_code == 201, resp.text
         buy_order = resp.json()
         buy_order_id = buy_order["id"]
+        assert buy_order["is_buy_order"] is True
+        assert buy_order["is_open"] is True
         print("   ✅ BUY order created:", buy_order)
 
         # Buyer money decreased by 100
@@ -117,13 +118,12 @@ async def test_market_flow():
         assert await get_money(buyer_token) == buyer_money
 
         # Verify listing (OPEN only)
-        list_resp = await client.get("/market/orders", params={"order_type": "BUY", "resource_type": "WOOD"})
+        list_resp = await client.get("/market/orders", params={"is_buy_order": True, "resource_type": "WOOD"})
         assert list_resp.status_code == 200
         assert any(o["id"] == buy_order_id for o in list_resp.json())
 
         # 2) BUY order update: increase price (enough funds)
         print("2) Updating BUY order price +50 (buyer reserves more MONEY)...")
-        # Add more money to ensure success
         await set_up_user_with(buyer_token, money=50)
         buyer_money += 50
         upd = await client.patch(f"/market/orders/{buy_order_id}", json={"total_price": 150})
@@ -145,11 +145,13 @@ async def test_market_flow():
         print("4) Creating SELL order (seller reserves WOOD)...")
         sell_resp = await s_client.post(
             "/market/orders",
-            json={"order_type": "SELL", "resource_type": "WOOD", "amount": 20, "total_price": 60},
+            json={"is_buy_order": False, "resource_type": "WOOD", "amount": 20, "total_price": 60},
         )
         assert sell_resp.status_code == 201, sell_resp.text
         sell_order = sell_resp.json()
         sell_order_id = sell_order["id"]
+        assert sell_order["is_buy_order"] is False
+        assert sell_order["is_open"] is True
         print("   ✅ SELL order created:", sell_order)
         # Seller wood decreased by 20
         seller_wood -= 20
@@ -157,7 +159,6 @@ async def test_market_flow():
 
         # 5) SELL order update: increase amount within available (should succeed)
         print("5) Updating SELL order amount +10 within reserve (should succeed)...")
-        # Provide extra wood so reservation increase can succeed
         await set_up_user_with(seller_token, wood=10)
         seller_wood += 10
         upd_s = await s_client.patch(f"/market/orders/{sell_order_id}", json={"amount": 30})
@@ -171,7 +172,6 @@ async def test_market_flow():
         print("6) Updating SELL order amount to 1000 (should fail insufficient resource)...")
         upd_s_fail = await s_client.patch(f"/market/orders/{sell_order_id}", json={"amount": 1000})
         assert upd_s_fail.status_code in (400, 500), upd_s_fail.text
-        # No change
         assert await get_qty(seller_token, "WOOD") == seller_wood
 
     # 7) Fill BUY order by seller (seller must have enough resource)
@@ -180,16 +180,15 @@ async def test_market_flow():
             print("7) Filling BUY order by seller...")
             fill_buy = await s_client.post(f"/market/orders/{buy_order_id}/fill")
             assert fill_buy.status_code == 200, fill_buy.text
-            assert fill_buy.json()["status"] == "CLOSED"
+            assert fill_buy.json()["is_open"] is False
             # Listing excludes closed by default
-            buy_list_after = await b_client.get("/market/orders", params={"order_type": "BUY", "resource_type": "WOOD"})
+            buy_list_after = await b_client.get("/market/orders", params={"is_buy_order": True, "resource_type": "WOOD"})
             assert buy_list_after.status_code == 200
             assert all(o["id"] != buy_order_id for o in buy_list_after.json())
             # Verify balances after BUY fill
             seller_money += 150
             seller_wood -= 10
             buyer_wood += 10
-            # buyer_money unchanged
             assert await get_money(seller_token) == seller_money
             assert await get_qty(seller_token, "WOOD") == seller_wood
             assert await get_qty(buyer_token, "WOOD") == buyer_wood
@@ -203,12 +202,11 @@ async def test_market_flow():
         print("   Filling SELL order by buyer...")
         fill_sell = await b_client.post(f"/market/orders/{sell_order_id}/fill")
         assert fill_sell.status_code == 200, fill_sell.text
-        assert fill_sell.json()["status"] == "CLOSED"
+        assert fill_sell.json()["is_open"] is False
         # Verify balances after SELL fill
         buyer_money -= 60
         buyer_wood += 30
         seller_money += 60
-        # seller_wood unchanged (already reserved)
         assert await get_money(buyer_token) == buyer_money  # expected 140
         assert await get_qty(buyer_token, "WOOD") == buyer_wood  # expected 40
         assert await get_money(seller_token) == seller_money  # expected 210
@@ -220,20 +218,20 @@ async def test_market_flow():
         closed_fill = await client.post(f"/market/orders/{sell_order_id}/fill")
         assert closed_fill.status_code == 400
 
-    # 10) Create failing orders (insufficient balances) and unauthorized update
+    # 10) Create failing orders and unauthorized update
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=30, headers=auth_headers(buyer_token)) as b_client:
         async with httpx.AsyncClient(base_url=BASE_URL, timeout=30, headers=auth_headers(seller_token)) as s_client:
             print("10) Creating BUY without enough MONEY (should fail)...")
             bad_buy = await b_client.post(
                 "/market/orders",
-                json={"order_type": "BUY", "resource_type": "WOOD", "amount": 1, "total_price": 1_000_000},
+                json={"is_buy_order": True, "resource_type": "WOOD", "amount": 1, "total_price": 1_000_000},
             )
             assert bad_buy.status_code in (400, 500), bad_buy.text
 
             print("    Creating SELL without enough resource (should fail)...")
             bad_sell = await s_client.post(
                 "/market/orders",
-                json={"order_type": "SELL", "resource_type": "STONE", "amount": 9999, "total_price": 1},
+                json={"is_buy_order": False, "resource_type": "STONE", "amount": 9999, "total_price": 1},
             )
             assert bad_sell.status_code in (400, 500), bad_sell.text
 
@@ -250,10 +248,9 @@ async def test_market_flow():
         before = await get_qty(temp_seller_token, "WOOD")  # expect 5
         tmp = await t_client.post(
             "/market/orders",
-            json={"order_type": "SELL", "resource_type": "WOOD", "amount": 5, "total_price": 10},
+            json={"is_buy_order": False, "resource_type": "WOOD", "amount": 5, "total_price": 10},
         )
         assert tmp.status_code == 201
-        # After creation, wood reserved -> 0
         mid = await get_qty(temp_seller_token, "WOOD")
         assert mid == before - 5 == 0
         tmp_id = tmp.json()["id"]
@@ -270,10 +267,9 @@ async def test_market_flow():
         m_before = await get_money(temp_buyer_token)  # expect 100
         tmpb = await tb_client.post(
             "/market/orders",
-            json={"order_type": "BUY", "resource_type": "WOOD", "amount": 3, "total_price": 70},
+            json={"is_buy_order": True, "resource_type": "WOOD", "amount": 3, "total_price": 70},
         )
         assert tmpb.status_code == 201
-        # After creation, money reserved -> 30
         m_mid = await get_money(temp_buyer_token)
         assert m_mid == m_before - 70 == 30
         tmpb_id = tmpb.json()["id"]

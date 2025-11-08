@@ -1,4 +1,4 @@
-"""Market order database queries."""
+"""Market order database queries (boolean flags)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from src.database.connection import fetch_one, fetch_all, execute_query
 async def create_market_order(
     *,
     user_id: UUID,
-    order_type: str,  # 'BUY' | 'SELL'
+    is_buy_order: bool,
     resource_type: str,
     amount: int,
     total_price: int,
@@ -19,30 +19,30 @@ async def create_market_order(
     """Create a market order and return the created row (no side effects)."""
     return await fetch_one(
         """
-        INSERT INTO market_order (user_id, order_type, resource_type, amount, total_price)
+        INSERT INTO market_order (user_id, is_buy_order, resource_type, amount, total_price)
         VALUES ($1, $2, $3::resource_type, $4, $5)
-        RETURNING id, user_id, order_type, resource_type, amount, total_price, status, created_at, updated_at
+        RETURNING id, user_id, is_buy_order, resource_type, amount, total_price, is_open, created_at, updated_at
         """,
-        user_id, order_type, resource_type, amount, total_price,
+        user_id, is_buy_order, resource_type, amount, total_price,
     )
 
 
 async def get_market_order(order_id: UUID) -> dict | None:
-    """Get a single market order by ID."""
-    return await fetch_one(
+    row = await fetch_one(
         """
-        SELECT id, user_id, order_type, resource_type, amount, total_price, status, created_at, updated_at
+        SELECT id, user_id, is_buy_order, resource_type, amount, total_price, is_open, created_at, updated_at
         FROM market_order
         WHERE id = $1
         """,
         order_id,
     )
+    return row
 
 
 async def list_market_orders(
     *,
     user_id: UUID | None = None,
-    order_type: str | None = None,
+    is_buy_order: bool | None = None,
     resource_type: str | None = None,
     include_closed: bool = False,
     limit: int = 50,
@@ -53,9 +53,9 @@ async def list_market_orders(
     args: list[Any] = []
     idx = 1
 
-    if order_type is not None:
-        conditions.append(f"order_type = ${idx}")
-        args.append(order_type)
+    if is_buy_order is not None:
+        conditions.append(f"is_buy_order = ${idx}")
+        args.append(is_buy_order)
         idx += 1
     if resource_type is not None:
         conditions.append(f"resource_type = ${idx}::resource_type")
@@ -66,7 +66,7 @@ async def list_market_orders(
         args.append(user_id)
         idx += 1
     if not include_closed:
-        conditions.append("status = 'OPEN'")
+        conditions.append("is_open = TRUE")
 
     where_clause = ""
     if conditions:
@@ -77,12 +77,12 @@ async def list_market_orders(
     args.extend([limit, offset])
 
     query = (
-        "SELECT id, user_id, order_type, resource_type, amount, total_price, status, created_at, updated_at\n"
+        "SELECT id, user_id, is_buy_order, resource_type, amount, total_price, is_open, created_at, updated_at\n"
         "FROM market_order" + where_clause + "\n"
-        f"ORDER BY updated_at DESC LIMIT ${p_limit} OFFSET ${p_offset}"
+        f"ORDER BY created_at DESC LIMIT ${p_limit} OFFSET ${p_offset}"
     )
-
-    return await fetch_all(query, *args)
+    rows = await fetch_all(query, *args)
+    return rows
 
 
 async def update_market_order(
@@ -116,32 +116,30 @@ async def update_market_order(
 
     set_parts.append("updated_at = CURRENT_TIMESTAMP")
 
-    # Append WHERE args in order
-    p_id = idx
-    p_user = idx + 1
     args.extend([order_id, user_id])
 
     query = (
         "UPDATE market_order\n"
         f"SET {', '.join(set_parts)}\n"
-        f"WHERE id = ${p_id} AND user_id = ${p_user} AND status = 'OPEN'\n"
-        "RETURNING id, user_id, order_type, resource_type, amount, total_price, status, created_at, updated_at"
+        f"WHERE id = ${idx} AND user_id = ${idx + 1} AND is_open = TRUE\n"
+        "RETURNING id, user_id, is_buy_order, resource_type, amount, total_price, is_open, created_at, updated_at"
     )
-
-    return await fetch_one(query, *args)
+    row = await fetch_one(query, *args)
+    return row
 
 
 async def close_market_order(order_id: UUID) -> dict | None:
     """Mark an OPEN order as CLOSED (filled)."""
-    return await fetch_one(
+    row = await fetch_one(
         """
         UPDATE market_order
-        SET status = 'CLOSED', updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1 AND status = 'OPEN'
-        RETURNING id, user_id, order_type, resource_type, amount, total_price, status, created_at, updated_at
+        SET is_open = FALSE, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND is_open = TRUE
+        RETURNING id, user_id, is_buy_order, resource_type, amount, total_price, is_open, created_at, updated_at
         """,
         order_id,
     )
+    return row
 
 
 async def delete_market_order(order_id: UUID, user_id: UUID) -> bool:

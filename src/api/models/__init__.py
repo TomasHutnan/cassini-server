@@ -12,7 +12,6 @@ from src.api.models.auth import (
 )
 from src.api.models.inventory import InventoryItemResponse, InventoryAdjustRequest
 from src.api.models.market import (
-    MarketOrderBase,
     MarketOrderCreate,
     MarketOrderUpdate,
     MarketOrderOut
@@ -34,7 +33,6 @@ __all__ = [
     "UserResponse",
     "RefreshTokenRequest",
     # Market models
-    "MarketOrderBase",
     "MarketOrderCreate",
     "MarketOrderUpdate",
     "MarketOrderOut",
