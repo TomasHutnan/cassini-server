@@ -3,12 +3,10 @@ FROM python:3.12-slim
 
 # Install system dependencies for rasterio/GDAL
 RUN apt-get update && apt-get install -y \
-    libgdal34 \
-    libgeos-c1v5 \
-    libproj25 \
-    libexpat1 \
-    libspatialindex6 \
     gdal-bin \
+    libgdal-dev \
+    libgeos-dev \
+    libproj-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
