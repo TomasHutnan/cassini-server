@@ -86,7 +86,6 @@ async def test_auth_flow():
                 print("   ✅ Login successful")
                 login_data = login_response.json()
                 new_access_token = login_data["access_token"]
-                new_refresh_token = login_data["refresh_token"]
                 print(f"   📝 New access token: {new_access_token[:20]}...")
             else:
                 print(f"   ❌ Login failed: {login_response.status_code}")
