@@ -289,7 +289,7 @@ async def claim_building_resources(
         last_claim = last_claim.replace(tzinfo=timezone.utc)
     
     now = datetime.now(timezone.utc)
-    time_delta = now - last_claim
+    time_delta = now - datetime(last_claim.year, last_claim.month, last_claim.day, last_claim.hour, last_claim.minute, last_claim.second)
 
     # Calculate resources produced (whole units only)
     resources_produced, seconds_spent = calculate_resource_production(
