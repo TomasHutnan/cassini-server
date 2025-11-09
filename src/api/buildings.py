@@ -305,7 +305,7 @@ async def claim_building_resources(
 
     # Update building's last_claim_at by only the time that was "consumed" for whole resources
     # This preserves fractional progress (e.g., if 15 min elapsed, 2 resources claimed at 6 min each, 3 min remains)
-    new_last_claim = last_claim + timedelta(seconds=seconds_spent)
+    new_last_claim = last_claim + timedelta(seconds=time_delta.total_seconds())
     # Remove timezone info for database storage (PostgreSQL stores as UTC by default)
     if new_last_claim.tzinfo is not None:
         new_last_claim = new_last_claim.replace(tzinfo=None)
