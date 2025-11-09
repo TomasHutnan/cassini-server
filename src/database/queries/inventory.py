@@ -28,7 +28,7 @@ def calculate_resource_production(level: int, seconds_elapsed: float) -> tuple[i
 
     resources_produced = seconds_elapsed * resources_per_hour // 3600
 
-    return resources_produced, resources_produced * resources_per_hour * 3600
+    return resources_produced, resources_produced // resources_per_hour * 3600
 
 
 async def get_user_inventory(user_id: UUID) -> list[dict]:

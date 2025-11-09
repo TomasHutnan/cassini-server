@@ -289,7 +289,7 @@ async def claim_building_resources(
         last_claim = last_claim.replace(tzinfo=timezone.utc)
     
     now = datetime.now(timezone.utc)
-    time_delta = now - datetime(last_claim.year, last_claim.month, last_claim.day, last_claim.hour, last_claim.minute, last_claim.second)
+    time_delta = now - last_claim
 
     # Calculate resources produced (whole units only)
     resources_produced, seconds_spent = calculate_resource_production(
@@ -305,7 +305,7 @@ async def claim_building_resources(
 
     # Update building's last_claim_at by only the time that was "consumed" for whole resources
     # This preserves fractional progress (e.g., if 15 min elapsed, 2 resources claimed at 6 min each, 3 min remains)
-    new_last_claim = last_claim + timedelta(seconds=time_delta.total_seconds())
+    new_last_claim = last_claim + timedelta(seconds=seconds_spent)
     # Remove timezone info for database storage (PostgreSQL stores as UTC by default)
     if new_last_claim.tzinfo is not None:
         new_last_claim = new_last_claim.replace(tzinfo=None)
